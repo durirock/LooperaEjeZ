@@ -1,839 +1,1114 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0A0A0F">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Loopera Eje Z</title>
-<link rel="manifest" href="manifest.json">
-<style>
-:root {
-  --bg:    #0A0A0F;
-  --card:  #12121A;
-  --card2: #1A1A28;
-  --grn:   #40E870;
-  --red:   #E84040;
-  --blu:   #4090E8;
-  --yel:   #E8C040;
-  --txt:   #EEEEF0;
-  --mut:   #666680;
-  --bdr:   #222235;
-}
-* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-html,body {
-  height:100%; background:var(--bg); color:var(--txt);
-  font-family:'Courier New',Courier,monospace;
-  overflow:hidden; user-select:none;
-}
-#splash {
-  position:fixed; inset:0; background:var(--bg);
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:24px; z-index:100; cursor:pointer;
-}
-#splash .logo { font-size:28px; font-weight:700; letter-spacing:6px; color:var(--txt); }
-#splash .sub  { font-size:11px; letter-spacing:3px; color:var(--mut); }
-#splash .tap  {
-  margin-top:32px; font-size:13px; letter-spacing:4px; color:var(--grn);
-  animation:pulse 1.6s ease-in-out infinite;
-}
-.ring-splash {
-  width:120px; height:120px; border-radius:50%;
-  border:3px solid var(--card2);
-  border-top-color:var(--grn);
-  animation:spin 3s linear infinite;
-}
-@keyframes spin  { to { transform:rotate(360deg); } }
-@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
-
-#app {
-  display:none; flex-direction:column; align-items:center;
-  height:100%; padding:env(safe-area-inset-top,12px) 16px env(safe-area-inset-bottom,12px);
-  gap:10px; overflow:hidden;
-}
-#app.visible { display:flex; }
-
-/* ── HEADER ── */
-header {
-  width:100%; display:flex; justify-content:space-between; align-items:center;
-  flex-shrink:0; padding:4px 0;
-}
-.title { font-size:16px; font-weight:700; letter-spacing:4px; color:var(--txt); }
-#state-badge {
-  font-size:10px; font-weight:700; letter-spacing:2px;
-  padding:4px 10px; border-radius:20px; border:1px solid var(--card2);
-  transition:all .2s;
-}
-
-/* ── CANVAS ── */
-#canvas-wrap {
-  flex-shrink:0; position:relative;
-  width:min(280px,70vw); height:min(280px,70vw);
-}
-#c {
-  width:100%; height:100%; cursor:pointer; border-radius:50%;
-  display:block;
-}
-#c:active { opacity:.9; }
-
-/* ── CONTROLS ── */
-#controls {
-  display:flex; justify-content:space-around; align-items:center;
-  width:100%; flex-shrink:0;
-}
-.ctrl {
-  display:flex; flex-direction:column; align-items:center; gap:4px;
-  min-width:56px; padding:8px 4px; border-radius:12px;
-  border:none; background:none; cursor:pointer; color:var(--mut);
-  transition:all .15s;
-}
-.ctrl:active { transform:scale(.92); }
-.ctrl svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
-.ctrl span { font-size:8px; letter-spacing:2px; font-weight:700; }
-.ctrl.en { color:var(--txt); }
-
-/* ── CALIB PANEL ── */
-#calib {
-  width:100%; background:var(--card); border-radius:12px;
-  padding:12px 16px; border:1px solid var(--bdr);
-  flex-shrink:0; display:none;
-}
-#calib.open { display:block; }
-#calib .row { display:flex; align-items:center; gap:10px; margin-top:8px; }
-#calib label { font-size:10px; letter-spacing:2px; color:var(--yel); font-weight:700; }
-#calib .hint { font-size:9px; color:var(--mut); margin-top:6px; line-height:1.5; }
-#rtl-slider {
-  flex:1; -webkit-appearance:none; height:4px;
-  background:linear-gradient(to right, var(--yel) 0%, var(--yel) var(--pct,30%), var(--card2) var(--pct,30%));
-  border-radius:2px; outline:none;
-}
-#rtl-slider::-webkit-slider-thumb {
-  -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
-  background:var(--yel); cursor:pointer; box-shadow:0 0 8px #E8C04060;
-}
-#rtl-val { font-size:13px; font-weight:700; color:var(--yel); min-width:52px; text-align:right; }
-
-/* ── LAYERS ── */
-#layers { width:100%; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
-.layer {
-  display:flex; align-items:center; gap:10px;
-  background:var(--card); border-radius:10px; border:1px solid var(--bdr);
-  padding:8px 12px; flex-shrink:0; transition:opacity .2s;
-}
-.layer.muted { opacity:.4; }
-.layer .lname { font-size:11px; font-weight:700; min-width:36px; }
-.layer .lbar { flex:1; height:6px; background:var(--card2); border-radius:3px; overflow:hidden; }
-.layer .lbar-fill { height:100%; border-radius:3px; transition:width .1s; }
-.layer .lmute {
-  background:none; border:1px solid var(--bdr); border-radius:6px;
-  color:var(--mut); font-size:9px; letter-spacing:1px; padding:4px 8px;
-  cursor:pointer; font-family:inherit; transition:all .15s;
-}
-.layer .lmute:active { transform:scale(.9); }
-.layer.muted .lmute { color:var(--red); border-color:var(--red); }
-
-/* ── FOOTER ── */
-footer {
-  width:100%; flex-shrink:0; display:flex; flex-direction:column;
-  align-items:center; gap:8px;
-}
-#exports { display:flex; gap:10px; width:100%; }
-.exp-btn {
-  flex:1; padding:10px 0; border-radius:10px; border:1px solid var(--bdr);
-  background:var(--card); color:var(--mut); font-size:10px; letter-spacing:2px;
-  font-weight:700; font-family:inherit; cursor:pointer; transition:all .2s;
-}
-.exp-btn:active { transform:scale(.97); }
-.exp-btn.ready { color:var(--grn); border-color:var(--grn); }
-.exp-btn.loop-ready { color:var(--blu); border-color:var(--blu); }
-.brand { font-size:8px; letter-spacing:2px; color:var(--mut); opacity:.4; }
-#status { font-size:10px; letter-spacing:1px; color:var(--mut); min-height:14px; }
-
-/* ── SCROLLBAR ── */
-#layers::-webkit-scrollbar { width:2px; }
-#layers::-webkit-scrollbar-track { background:transparent; }
-#layers::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:1px; }
-</style>
-</head>
-<body>
-
-<!-- ── SPLASH ── -->
-<div id="splash">
-  <div class="ring-splash"></div>
-  <div class="logo">LOOPERA</div>
-  <div class="sub">EJE · Z · CHAMALANQUIMYST LABS</div>
-  <div class="tap">▸ TOCA PARA INICIAR</div>
-</div>
-
-<!-- ── APP ── -->
-<div id="app">
-  <header>
-    <div class="title">LOOPERA  EJE·Z</div>
-    <div id="state-badge">IDLE</div>
-  </header>
-
-  <div id="canvas-wrap">
-    <canvas id="c"></canvas>
-  </div>
-
-  <div id="controls">
-    <button class="ctrl" id="btn-stop" onclick="cmdStop()">
-      <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" stroke-width="1.8"/></svg>
-      <span>STOP</span>
-    </button>
-    <button class="ctrl en" id="btn-undo" onclick="cmdUndo()">
-      <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a5 5 0 010 10h-2"/></svg>
-      <span>UNDO</span>
-    </button>
-    <button class="ctrl en" id="btn-clear" onclick="cmdClear()">
-      <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
-      <span>CLEAR</span>
-    </button>
-    <button class="ctrl en" id="btn-calib" onclick="toggleCalib()">
-      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-      <span>CALIB</span>
-    </button>
-  </div>
-
-  <div id="calib">
-    <label>COMPENSACIÓN RTL (LATENCIA)</label>
-    <div class="row">
-      <input type="range" id="rtl-slider" min="0" max="200" value="0" step="1"
-        oninput="onRTL(this.value)">
-      <div id="rtl-val">0 ms</div>
-    </div>
-    <div class="hint">
-      Si las capas suenan "atrás del beat" → sube el valor.<br>
-      Cable USB-C/jack: 40–90 ms · Bluetooth: 100–200 ms
-    </div>
-  </div>
-
-  <div id="layers"></div>
-
-  <footer>
-    <div id="exports">
-      <button class="exp-btn" id="btn-session" onclick="cmdExportSession()">⬇ SESIÓN WEBM</button>
-      <button class="exp-btn" id="btn-loop" onclick="cmdExportLoop()">⬇ LOOP WAV</button>
-    </div>
-    <div id="status">Motor listo · Toca el círculo para grabar</div>
-    <div class="brand">CHAMALANQUIMYST LABS · WILD MEDICINE</div>
-  </footer>
-</div>
-
-<script>
-// ═══════════════════════════════════════════════════════════════════
-// LOOPERA EJE Z — Web Audio PWA
-// Motor: AudioWorkletProcessor (equivalente a LooperEngine.cpp)
-// Compensación RTL circular · Soft-limiter bus máster · Export WAV
-// ═══════════════════════════════════════════════════════════════════
-
-// ── 0. Service Worker ──────────────────────────────────────────────
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
-
-// ── 1. WORKLET CODE (embebido como blob — evita CORS) ──────────────
-const WORKLET_CODE = `
-'use strict';
-const SOFT_TH = 0.708;
-
-class LooperProcessor extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.state    = 'IDLE';
-    this.layers   = [];      // [{data:Float32Array, muted:bool, rms:float}]
-    this.loopLen  = 0;
-    this.ph       = 0;       // playhead
-    this.recBuf   = null;
-    this.recPos   = 0;
-    this.maxRec   = sampleRate * 240; // 4 min max
-    this.rtl      = 0;       // RTL en frames
-    this.env      = 0;       // envelope para onset
-    this.snapT    = 0;
-    this.snapI    = Math.floor(sampleRate / 30); // 30fps
-    this.port.onmessage = e => this._cmd(e.data);
-  }
-
-  _cmd(m) {
-    switch (m.t) {
-      case 'REC':
-        if      (this.state === 'IDLE')    { this.recBuf = new Float32Array(this.maxRec); this.recPos = 0; this.state = 'REC_BASE'; }
-        else if (this.state === 'REC_BASE') this._finalBase();
-        else if (this.state === 'PLAYING') { this.recBuf = new Float32Array(this.loopLen); this.recPos = 0; this.state = 'OVERDUB'; }
-        else if (this.state === 'OVERDUB')  this._finalLayer();
-        break;
-      case 'STOP':
-        if (this.state === 'OVERDUB')   this._finalLayer();
-        if (this.state === 'REC_BASE')  this._finalBase();
-        this.state = 'IDLE';
-        this.port.postMessage({ t: 'stopped' });
-        break;
-      case 'UNDO': {
-        const i = this.layers.length - 1;
-        if (i >= 1) this.layers[i].muted = !this.layers[i].muted;
-        break;
-      }
-      case 'CLEAR':
-        this.layers = []; this.loopLen = 0; this.ph = 0;
-        this.recBuf = null; this.recPos = 0; this.state = 'IDLE'; this.env = 0;
-        this.port.postMessage({ t: 'cleared' });
-        break;
-      case 'MUTE':
-        if (this.layers[m.i]) this.layers[m.i].muted = !this.layers[m.i].muted;
-        break;
-      case 'RTL':
-        this.rtl = m.v;
-        break;
-      case 'EXPORT':
-        if (this.loopLen > 0) {
-          const mix = new Float32Array(this.loopLen);
-          for (let n = 0; n < this.loopLen; n++) {
-            let s = 0;
-            for (const l of this.layers) if (!l.muted) s += l.data[n];
-            mix[n] = this._sl(s);
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0A0A0F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Loopera Eje Z — Chamalanquimyst Labs</title>
+  
+  <!-- Tailwind CSS para el diseño estético de sintetizador analógico de hardware -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyberBg: '#080710',
+            cyberCard: '#110f22',
+            cyberCardLight: '#1b1836',
+            neonGreen: '#40e870',
+            neonRed: '#e84040',
+            neonBlue: '#4090e8',
+            neonYellow: '#e8c040',
+            neonPurple: '#9d4edd',
+            cyberBdr: '#2a2652'
           }
-          this.port.postMessage({ t: 'loop', data: mix.buffer, sr: sampleRate }, [mix.buffer]);
-        }
-        break;
-    }
-  }
-
-  // Shift circular hacia atrás — IDÉNTICO a LooperEngine.cpp::applyRTLShift
-  // dst[n] = src[(n + rtl) % len]  → adelanta lectura = atrasa señal = compensa latencia
-  _shift(dst, src, srcLen) {
-    const len = dst.length, r = this.rtl;
-    for (let n = 0; n < len; n++) {
-      const si = r > 0 ? (n + r) % len : n;
-      dst[n] = si < srcLen ? src[si] : 0;
-    }
-  }
-
-  _finalBase() {
-    if (this.recPos < 512) { this.state = 'IDLE'; return; }
-    this.loopLen = this.recPos;
-    const data = new Float32Array(this.loopLen);
-    this._shift(data, this.recBuf, this.recPos);
-    const rms = this._computeRMS(data);
-    this.layers = [{ data, muted: false, rms }];
-    this.ph = 0; this.recBuf = null; this.recPos = 0;
-    this.state = 'PLAYING';
-    this.port.postMessage({ t: 'base', len: this.loopLen, sr: sampleRate });
-  }
-
-  _finalLayer() {
-    if (this.layers.length >= 64) { this.state = 'PLAYING'; return; }
-    const data = new Float32Array(this.loopLen);
-    this._shift(data, this.recBuf, Math.min(this.recPos, this.loopLen));
-    const rms = this._computeRMS(data);
-    this.layers.push({ data, muted: false, rms });
-    this.recBuf = null; this.recPos = 0;
-    this.state = 'PLAYING';
-    this.port.postMessage({ t: 'layer', n: this.layers.length });
-  }
-
-  _computeRMS(buf) {
-    let e = 0;
-    for (let i = 0; i < buf.length; i++) e += buf[i] * buf[i];
-    return Math.sqrt(e / buf.length);
-  }
-
-  // Soft-limiter tanh en bus máster — IDÉNTICO a LooperEngine.cpp::softLimit
-  _sl(x) {
-    const T = SOFT_TH, k = 1 / (1 - T);
-    if (x >  T) return  T + (1 - T) * Math.tanh((x -  T) * k);
-    if (x < -T) return -T - (1 - T) * Math.tanh((-x - T) * k);
-    return x;
-  }
-
-  // ── EL CALLBACK DE AUDIO — orden fijo del contrato (Anexo 2.1-BIS) ──
-  process(inputs, outputs) {
-    const mic = inputs[0]?.[0];
-    const out = outputs[0]?.[0];
-    if (!out) return true;
-    const N = out.length;
-    let energy = 0;
-
-    for (let i = 0; i < N; i++) {
-      // 1. Mezcla de capas activas
-      let mix = 0;
-      if (this.state === 'PLAYING' || this.state === 'OVERDUB') {
-        for (const l of this.layers) if (!l.muted) mix += l.data[this.ph];
-      }
-
-      // 2. Soft-limiter en bus máster
-      const s = this._sl(mix);
-      out[i] = s;
-      energy += s * s;
-
-      // 3. Captura del mic (DESPUÉS de escribir la salida)
-      if ((this.state === 'REC_BASE' || this.state === 'OVERDUB') && mic && this.recBuf) {
-        if (this.recPos < this.recBuf.length) {
-          this.recBuf[this.recPos++] = mic[i];
-          if (this.state === 'REC_BASE' && this.recPos >= this.recBuf.length) this._finalBase();
         }
       }
+    }
+  </script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700;800&display=swap');
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background-color: #080710;
+      color: #edeef5;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .neon-shadow-green { box-shadow: 0 0 15px rgba(64, 232, 112, 0.4); }
+    .neon-shadow-red { box-shadow: 0 0 15px rgba(232, 64, 64, 0.4); }
+    .neon-shadow-blue { box-shadow: 0 0 15px rgba(64, 144, 232, 0.4); }
+    
+    /* Personalización de sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: #1b1836;
+      border-radius: 9999px;
+      height: 6px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e8c040;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(232, 192, 64, 0.8);
+      transition: transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:active {
+      transform: scale(1.2);
+    }
+    /* Ocultar barra de scroll en listado de capas */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="h-screen flex flex-col justify-between overflow-hidden p-safe select-none">
 
-      // 4. Avance del playhead
-      if (this.loopLen > 0 && ++this.ph >= this.loopLen) this.ph = 0;
+  <!-- ── SPLASH SCREEN ── -->
+  <div id="splash" class="fixed inset-0 bg-cyberBg flex flex-col items-center justify-center z-50 px-6 text-center transition-all duration-500">
+    <div class="relative w-40 h-40 mb-8 flex items-center justify-center">
+      <div class="absolute inset-0 rounded-full border border-neonPurple opacity-30 animate-ping"></div>
+      <div class="absolute inset-2 rounded-full border-4 border-t-neonGreen border-r-transparent border-b-transparent border-l-transparent animate-spin" style="animation-duration: 2s;"></div>
+      <div class="absolute inset-4 rounded-full border-2 border-b-neonBlue border-t-transparent border-r-transparent border-l-transparent animate-spin" style="animation-duration: 1.5s; animation-direction: reverse;"></div>
+      <div class="z-10 text-neonGreen font-extrabold text-3xl tracking-widest">Ω Z</div>
+    </div>
+    <h1 class="text-2xl font-black tracking-widest mb-2 text-transparent bg-clip-text bg-gradient-to-r from-neonGreen via-neonBlue to-neonPurple">
+      LOOPERA EJE Z
+    </h1>
+    <p class="text-xs text-slate-500 tracking-wider mb-8 uppercase">Real-Time Sound-on-Sound PWA</p>
+    
+    <button id="btn-start-init" class="px-8 py-4 bg-gradient-to-r from-neonGreen to-neonBlue text-cyberBg font-bold text-sm rounded-xl tracking-widest neon-shadow-green transition-transform hover:scale-105 active:scale-95 uppercase">
+      Iniciar Motor de Audio
+    </button>
+    <div id="splash-status" class="mt-4 text-[10px] text-slate-500 tracking-widest animate-pulse">
+      Presiona para calibrar hardware de baja latencia...
+    </div>
+    <div class="absolute bottom-6 text-[8px] text-slate-600 tracking-widest uppercase">
+      CHAMALANQUIMYST LABS • WILD MEDICINE
+    </div>
+  </div>
+
+  <!-- ── MAIN APP INTERFACE ── -->
+  <main class="flex-1 flex flex-col justify-between p-4 max-w-md mx-auto w-full h-full relative">
+    
+    <!-- HEADER -->
+    <header class="flex items-center justify-between w-full py-2">
+      <div class="flex flex-col">
+        <span class="text-xs font-bold tracking-widest text-slate-400">LOOPERA EJE Z</span>
+        <span id="engine-mode-badge" class="text-[8px] tracking-widest text-neonYellow uppercase font-bold">Iniciando...</span>
+      </div>
+      <div id="state-indicator" class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-cyberCard border border-cyberBdr text-slate-400">
+        STANDBY
+      </div>
+    </header>
+
+    <!-- VISUALIZADOR CENTRAL (ANILLO DE CONTROL FLOTANTE) -->
+    <div class="flex-1 flex flex-col items-center justify-center my-2 relative">
+      <div class="relative w-64 h-64 md:w-72 md:h-72 flex items-center justify-center">
+        <!-- Canvas circular -->
+        <canvas id="looper-canvas" class="absolute inset-0 w-full h-full cursor-pointer rounded-full"></canvas>
+        
+        <!-- Textos dinámicos en el ojo del anillo -->
+        <div id="canvas-overlay" class="pointer-events-none flex flex-col items-center justify-center text-center z-10">
+          <span id="overlay-action" class="text-[10px] tracking-widest font-black text-neonBlue uppercase mb-1">TOCAR</span>
+          <span id="overlay-status" class="text-base font-black tracking-wider text-white uppercase">EMPEZAR</span>
+          <span id="overlay-timer" class="text-[10px] text-slate-500 tracking-widest mt-1">00:00.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL DE CONTROLES AUXILIARES -->
+    <section class="w-full flex justify-around gap-2 mb-3">
+      <!-- Parar Bucle -->
+      <button onclick="looperStop()" class="flex-1 py-2.5 bg-cyberCard border border-cyberBdr rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-cyberCardLight active:scale-95 transition-all text-slate-400 hover:text-white">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+        <span class="text-[8px] font-bold tracking-widest">STOP LOOP</span>
+      </button>
+      <!-- Deshacer (Undo) -->
+      <button onclick="looperUndo()" class="flex-1 py-2.5 bg-cyberCard border border-cyberBdr rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-cyberCardLight active:scale-95 transition-all text-slate-400 hover:text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
+        <span class="text-[8px] font-bold tracking-widest">UNDO</span>
+      </button>
+      <!-- Limpiar Todo (Clear) -->
+      <button onclick="looperClear()" class="flex-1 py-2.5 bg-cyberCard border border-cyberBdr rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-cyberCardLight active:scale-95 transition-all text-slate-400 hover:text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        <span class="text-[8px] font-bold tracking-widest">CLEAR</span>
+      </button>
+      <!-- Ajustes de Sincronización y Latencia -->
+      <button id="btn-sync-toggle" onclick="toggleSyncPanel()" class="flex-1 py-2.5 bg-cyberCard border border-cyberBdr rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-cyberCardLight active:scale-95 transition-all text-neonYellow">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span class="text-[8px] font-bold tracking-widest">SYNC PRO</span>
+      </button>
+    </section>
+
+    <!-- PANEL DE AJUSTE AVANZADO DE SINCRONIZACIÓN -->
+    <div id="sync-panel" class="hidden w-full bg-cyberCard border border-cyberBdr rounded-xl p-3 mb-3 flex flex-col gap-3">
+      <!-- Control de Latencia -->
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-[9px] font-bold text-neonYellow tracking-wider">COMPENSACIÓN RTL (LATENCIA)</span>
+          <span id="rtl-val" class="text-xs font-bold text-neonYellow">45 ms</span>
+        </div>
+        <input type="range" id="rtl-slider" min="0" max="250" value="45" class="w-full" oninput="updateRTL(this.value)">
+      </div>
+
+      <!-- Control de Filtro de Acople -->
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-[9px] font-bold text-neonBlue tracking-wider">FILTRO ANTI-ACOPLE ACÚSTICO</span>
+          <span id="bleed-val" class="text-xs font-bold text-neonBlue">60%</span>
+        </div>
+        <input type="range" id="bleed-slider" min="0" max="100" value="60" class="w-full" oninput="updateBleed(this.value)">
+      </div>
+
+      <!-- Selector de Monitoreo (Altavoz vs Auriculares) -->
+      <div class="flex justify-between items-center border-t border-cyberBdr/50 pt-2">
+        <span class="text-[9px] font-bold text-slate-400 tracking-wider">RETORNO DE VOZ (MONITOR)</span>
+        <button id="btn-monitor-mode" onclick="toggleMonitorMode()" class="px-3 py-1 bg-neonRed/10 border border-neonRed text-neonRed text-[8px] font-bold tracking-widest rounded-lg transition-all">
+          DESACTIVADO (MODO ALTAVOZ)
+        </button>
+      </div>
+    </div>
+
+    <!-- SECCIÓN DE GRABACIÓN DE CANCIÓN COMPLETA (SEGUNDO BOTÓN DE GRABACIÓN) -->
+    <section class="w-full bg-cyberCard border border-cyberBdr rounded-xl p-3 mb-3 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-[9px] font-bold tracking-widest text-slate-400">GRABADOR DE CANCIÓN (LINEAL)</span>
+        <span id="song-timer" class="text-[9px] tracking-widest text-slate-500 font-bold">00:00</span>
+      </div>
+      
+      <div class="flex gap-2">
+        <!-- El segundo botón de grabación -->
+        <button id="btn-song-rec" onclick="toggleSongRecording()" class="flex-1 py-3 bg-gradient-to-r from-neonRed/20 to-neonPurple/20 border border-neonRed/40 text-neonRed font-extrabold text-[10px] tracking-widest rounded-xl flex items-center justify-center gap-2 hover:from-neonRed hover:to-neonPurple hover:text-cyberBg transition-all active:scale-95 uppercase">
+          <span class="w-2.5 h-2.5 rounded-full bg-neonRed animate-pulse"></span>
+          <span id="song-rec-label">Grabar Canción Completa</span>
+        </button>
+        <!-- Descarga de la canción grabada -->
+        <button id="btn-download-song" onclick="downloadSong()" disabled class="px-4 py-3 bg-cyberCard border border-cyberBdr text-slate-600 font-bold text-[10px] tracking-widest rounded-xl flex items-center justify-center gap-1 transition-all">
+          <span>⬇ EXPORTAR</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- LISTADO DE CAPAS (SINOPSIS MEZCLADOR MULTI-PISTA) -->
+    <section class="flex-1 min-h-0 flex flex-col gap-2 mb-3">
+      <div class="text-[9px] tracking-widest text-slate-500 font-bold mb-1 flex justify-between">
+        <span>MEZCLADOR DE CAPAS COMPENSADAS</span>
+        <span id="layer-counter">0 CAPAS</span>
+      </div>
+      <div id="layers-container" class="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-2 pr-1">
+        <div id="empty-layers-msg" class="flex-1 flex items-center justify-center border border-dashed border-cyberBdr rounded-xl p-6 text-center text-xs text-slate-600 tracking-wider">
+          NINGUNA CAPA GRABADA AÚN
+        </div>
+      </div>
+    </section>
+
+    <!-- PIE DE PÁGINA -->
+    <footer class="w-full flex flex-col gap-2">
+      <div id="status-bar" class="text-[9px] tracking-wider text-slate-500 text-center uppercase truncate">
+        Sincronizador listo • Modo Altavoz Activo
+      </div>
+      <div class="text-center text-[7px] text-slate-600 tracking-widest uppercase">
+        CHAMALANQUIMYST LABS • WILD MEDICINE
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════
+    // LOOPER CORE: VARIABLES DE ESTADO Y MOTOR DE AUDIO
+    // ═══════════════════════════════════════════════════════════════════
+    let audioCtx = null;
+    let micStream = null;
+    let mainAudioNode = null; 
+    let isWorkletEngine = false;
+
+    // Configuración acústica
+    let rtlMs = 45; 
+    let antiBleedCoeff = 0.6; 
+    let sampleRate = 48000;
+    let speakerMode = true; // Modo altavoz (sin monitoreo de voz en parlantes)
+
+    // Estado del Looper
+    let currentEngineState = 'IDLE';
+    let baseLoopLength = 0; 
+    let currentPlayhead = 0; 
+    let trackLayers = []; 
+    let baseRecordBuffer = []; 
+
+    // Registro de Canción Completa
+    let songMediaRecorder = null;
+    let songBlobs = [];
+    let isRecordingSong = false;
+    let songTimerInterval = null;
+    let songSeconds = 0;
+
+    // Búfer circular de referencia para el algoritmo de sustracción de eco
+    const speakerHistorySize = 65536; 
+    const speakerHistory = new Float32Array(speakerHistorySize);
+    let speakerHistoryWritePtr = 0;
+
+    // Telemetría de señal
+    let currentRMS = 0;
+
+    // ── CONFIGURACIÓN DEL SERVICE WORKER (PWA) ──
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http') && !window.location.href.startsWith('blob:')) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registrado:', reg.scope))
+        .catch(err => console.warn('Service Worker omitido:', err));
     }
 
-    // 5. Snapshot ~30fps (una vez por bloque, no por sample)
-    this.snapT += N;
-    if (this.snapT >= this.snapI) {
-      this.snapT = 0;
-      const rms = Math.sqrt(energy / N);
-      this.env = 0.95 * this.env + 0.05 * rms;
-      this.port.postMessage({
-        t:      'snap',
-        s:      this.state,
-        n:      this.layers.length,
-        p:      this.loopLen > 0 ? this.ph / this.loopLen : 0,
-        rms,
-        onset:  rms > this.env * 1.5 && rms > 0.02,
-        muted:  this.layers.map(l => l.muted),
-        lrms:   this.layers.map(l => l.rms)
+    // ── CÓDIGO FUENTE DEL WORKLET DE BAJA LATENCIA (Sincronización circular de fase) ──
+    const WORKLET_PROCESSOR_CODE = `
+      const SOFT_THRESHOLD = 0.708; 
+      
+      class WebLooperWorklet extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.engineState = 'IDLE';
+          this.layers = [];
+          this.loopLength = 0;
+          this.playhead = 0;
+          this.rtlFrames = 1920; 
+          this.antiBleed = 0.6;
+          this.speakerMode = true; // Modo altavoz por defecto
+          
+          this.baseRecordBuf = [];
+          
+          this.spkHistory = new Float32Array(65536);
+          this.spkWritePtr = 0;
+          
+          this.port.onmessage = (e) => this.handleMessage(e.data);
+        }
+
+        handleMessage(msg) {
+          switch(msg.type) {
+            case 'SET_STATE':
+              this.engineState = msg.state;
+              if (msg.state === 'IDLE') {
+                this.layers = [];
+                this.loopLength = 0;
+                this.playhead = 0;
+                this.baseRecordBuf = [];
+              }
+              break;
+            case 'CLOSE_BASE':
+              this.finalizeBaseTrack();
+              break;
+            case 'SET_RTL':
+              this.rtlFrames = msg.frames;
+              break;
+            case 'SET_BLEED':
+              this.antiBleed = msg.value;
+              break;
+            case 'SET_MONITOR':
+              this.speakerMode = msg.speakerMode;
+              break;
+            case 'MUTE_LAYER':
+              if (this.layers[msg.index]) {
+                this.layers[msg.index].muted = msg.muted;
+              }
+              break;
+            case 'DELETE_LAYER':
+              if (msg.index >= 0 && msg.index < this.layers.length) {
+                this.layers.splice(msg.index, 1);
+              }
+              break;
+            case 'UNDO_LAYER':
+              if (this.layers.length > 0) {
+                this.layers.pop();
+              }
+              break;
+          }
+        }
+
+        finalizeBaseTrack() {
+          if (this.baseRecordBuf.length < 256) {
+            this.engineState = 'IDLE';
+            this.baseRecordBuf = [];
+            return;
+          }
+          this.loopLength = this.baseRecordBuf.length;
+          
+          const data = new Float32Array(this.loopLength);
+          this.shiftCircular(data, this.baseRecordBuf, this.loopLength, this.rtlFrames);
+          
+          this.layers.push({
+            data: data,
+            muted: false,
+            rms: this.calculateRMS(data)
+          });
+          
+          this.baseRecordBuf = [];
+          this.playhead = 0;
+          this.engineState = 'PLAYING';
+          
+          this.port.postMessage({
+            type: 'BASE_INITIALIZED',
+            length: this.loopLength
+          });
+        }
+
+        shiftCircular(dest, src, length, offset) {
+          for (let i = 0; i < length; i++) {
+            const sourceIndex = offset > 0 ? (i + offset) % length : i;
+            dest[i] = sourceIndex < src.length ? src[sourceIndex] : 0;
+          }
+        }
+
+        calculateRMS(arr) {
+          let sum = 0;
+          for (let i = 0; i < arr.length; i++) {
+            sum += arr[i] * arr[i];
+          }
+          return Math.sqrt(sum / arr.length);
+        }
+
+        softLimit(x) {
+          if (x > SOFT_THRESHOLD) {
+            return SOFT_THRESHOLD + (1.0 - SOFT_THRESHOLD) * Math.tanh((x - SOFT_THRESHOLD) / (1.0 - SOFT_THRESHOLD));
+          }
+          if (x < -SOFT_THRESHOLD) {
+            return -SOFT_THRESHOLD + (1.0 - SOFT_THRESHOLD) * Math.tanh((x + SOFT_THRESHOLD) / (1.0 - SOFT_THRESHOLD));
+          }
+          return x;
+        }
+
+        process(inputs, outputs) {
+          const micInput = inputs[0] ? inputs[0][0] : null;
+          const speakerOutput = outputs[0] ? outputs[0][0] : null;
+          
+          if (!speakerOutput) return true;
+          const numSamples = speakerOutput.length;
+          let currentMixEnergy = 0;
+
+          for (let i = 0; i < numSamples; i++) {
+            // ── 1. MIX MASTER (Suma lineal de bucles de audio activos) ──
+            let rawOutput = 0.0;
+            if (this.engineState === 'PLAYING' || this.engineState === 'OVERDUB') {
+              for (const layer of this.layers) {
+                if (!layer.muted) {
+                  rawOutput += layer.data[this.playhead];
+                }
+              }
+            }
+
+            // Aplicación de Soft-Limiter analógico
+            let masterValue = this.softLimit(rawOutput);
+
+            // Almacenamos salida en el historial para cancelar el eco acústico
+            this.spkHistory[this.spkWritePtr] = masterValue;
+            const currentSpkWritePos = this.spkWritePtr;
+            this.spkWritePtr = (this.spkWritePtr + 1) % 65536;
+
+            // ── 2. PROCESAR MICRÓFONO CON CANCELACIÓN DE ACOPLE ──
+            if (micInput) {
+              let micSample = micInput[i];
+
+              // Sustracción matemática calibrada con la latencia física (Eco)
+              const delayPos = (currentSpkWritePos - this.rtlFrames + 65536) % 65536;
+              const speakerBleedReference = this.spkHistory[delayPos];
+              const cleanMicSample = micSample - (this.antiBleed * speakerBleedReference);
+
+              // Si NO estamos en modo altavoz (estamos con auriculares), regresamos la voz a los parlantes
+              if (!this.speakerMode) {
+                masterValue += cleanMicSample * 0.8;
+                masterValue = this.softLimit(masterValue);
+              }
+
+              if (this.engineState === 'REC_BASE') {
+                this.baseRecordBuf.push(cleanMicSample);
+              } 
+              else if (this.engineState === 'OVERDUB') {
+                if (this.layers.length > 0) {
+                  const currentLayerIdx = this.layers.length - 1;
+                  // Alineación matemática al milisegundo por shift circular
+                  const correctedWriteHead = (this.playhead - this.rtlFrames + this.loopLength) % this.loopLength;
+                  this.layers[currentLayerIdx].data[correctedWriteHead] += cleanMicSample;
+                }
+              }
+            }
+
+            speakerOutput[i] = masterValue;
+            currentMixEnergy += masterValue * masterValue;
+
+            if (this.loopLength > 0) {
+              this.playhead = (this.playhead + 1) % this.loopLength;
+            }
+          }
+
+          // Telemetría
+          const rmsResult = Math.sqrt(currentMixEnergy / numSamples);
+          this.port.postMessage({
+            type: 'TELEMETRY',
+            rms: rmsResult,
+            playheadProgress: this.loopLength > 0 ? this.playhead / this.loopLength : 0,
+            engineState: this.engineState,
+            layersMuteState: this.layers.map(l => l.muted),
+            layersRMS: this.layers.map(l => l.rms)
+          });
+
+          return true;
+        }
+      }
+      
+      registerProcessor('web-looper-worklet', WebLooperWorklet);
+    `;
+
+    // ── FALLBACK ENGINE (SCRIPT PROCESSOR - Para local file://) ──
+    function runFallbackEngine(stream) {
+      const bufferSize = 1024;
+      const srcNode = audioCtx.createMediaStreamSource(stream);
+      mainAudioNode = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+      
+      srcNode.connect(mainAudioNode);
+      mainAudioNode.connect(audioCtx.destination);
+      
+      mainAudioNode.onaudioprocess = function(audioProcessingEvent) {
+        const inputBuffer = audioProcessingEvent.inputBuffer;
+        const outputBuffer = audioProcessingEvent.outputBuffer;
+        const micInput = inputBuffer.getChannelData(0);
+        const speakerOutput = outputBuffer.getChannelData(0);
+        const N = outputBuffer.length;
+        
+        let currentMixEnergy = 0;
+        const rtlFrames = Math.round((rtlMs / 1000) * sampleRate);
+
+        for (let i = 0; i < N; i++) {
+          let rawOutput = 0.0;
+          
+          if (currentEngineState === 'PLAYING' || currentEngineState === 'OVERDUB') {
+            for (let L = 0; L < trackLayers.length; L++) {
+              if (!trackLayers[L].muted) {
+                rawOutput += trackLayers[L].data[currentPlayhead];
+              }
+            }
+          }
+
+          let masterValue = rawOutput;
+          const T = 0.708;
+          if (masterValue > T) masterValue = T + (1.0 - T) * Math.tanh((masterValue - T) / (1.0 - T));
+          else if (masterValue < -T) masterValue = -T + (1.0 - T) * Math.tanh((masterValue + T) / (1.0 - T));
+          
+          speakerHistory[speakerHistoryWritePtr] = masterValue;
+          const currentSpkWritePos = speakerHistoryWritePtr;
+          speakerHistoryWritePtr = (speakerHistoryWritePtr + 1) % speakerHistorySize;
+
+          const delayPos = (currentSpkWritePos - rtlFrames + speakerHistorySize) % speakerHistorySize;
+          const speakerBleedReference = speakerHistory[delayPos];
+          const cleanMicSample = micInput[i] - (antiBleedCoeff * speakerBleedReference);
+
+          // Monitorización inteligente para evitar feedback directo de voz en altavoces
+          if (!speakerMode) {
+            masterValue += cleanMicSample * 0.8;
+            if (masterValue > T) masterValue = T + (1.0 - T) * Math.tanh((masterValue - T) / (1.0 - T));
+            else if (masterValue < -T) masterValue = -T + (1.0 - T) * Math.tanh((masterValue + T) / (1.0 - T));
+          }
+
+          if (currentEngineState === 'REC_BASE') {
+            baseRecordBuffer.push(cleanMicSample);
+          } 
+          else if (currentEngineState === 'OVERDUB') {
+            if (trackLayers.length > 0) {
+              const currentLayerIdx = trackLayers.length - 1;
+              const correctedWriteHead = (currentPlayhead - rtlFrames + baseLoopLength) % baseLoopLength;
+              trackLayers[currentLayerIdx].data[correctedWriteHead] += cleanMicSample;
+            }
+          }
+
+          speakerOutput[i] = masterValue;
+          currentMixEnergy += masterValue * masterValue;
+
+          if (baseLoopLength > 0) {
+            currentPlayhead = (currentPlayhead + 1) % baseLoopLength;
+          }
+        }
+
+        currentRMS = Math.sqrt(currentMixEnergy / N);
+        const progressVal = baseLoopLength > 0 ? currentPlayhead / baseLoopLength : 0;
+        
+        requestAnimationFrame(() => {
+          updateUIState(currentEngineState, progressVal, currentRMS);
+        });
+      };
+    }
+
+    // ── INICIALIZACIÓN DEL ENTORNO DE AUDIO ──
+    async function startAudioEngine() {
+      try {
+        const audioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new audioContextClass({
+          latencyHint: 'interactive',
+          sampleRate: 48000
+        });
+        sampleRate = audioCtx.sampleRate;
+
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000
+          }
+        });
+
+        // Intentar registrar el motor moderno AudioWorklet
+        try {
+          if (window.location.protocol === 'file:' || window.location.href.startsWith('blob:')) {
+            throw new Error("Protocolo no seguro. Activando motor de compatibilidad.");
+          }
+
+          const blob = new Blob([WORKLET_PROCESSOR_CODE], { type: 'application/javascript' });
+          const workletUrl = URL.createObjectURL(blob);
+          await audioCtx.audioWorklet.addModule(workletUrl);
+          URL.revokeObjectURL(workletUrl);
+
+          const micSource = audioCtx.createMediaStreamSource(micStream);
+          mainAudioNode = new AudioWorkletNode(audioCtx, 'web-looper-worklet');
+
+          micSource.connect(mainAudioNode);
+          mainAudioNode.connect(audioCtx.destination);
+
+          // Recepción de telemetría
+          mainAudioNode.port.onmessage = (e) => {
+            if (e.data.type === 'TELEMETRY') {
+              currentRMS = e.data.rms;
+              updateUIState(e.data.engineState, e.data.playheadProgress, e.data.rms);
+            } 
+            else if (e.data.type === 'BASE_INITIALIZED') {
+              baseLoopLength = e.data.length;
+              createBaseLayerHTML();
+            }
+          };
+
+          isWorkletEngine = true;
+          document.getElementById('engine-mode-badge').textContent = "MOTOR: WORKLET (Baja latencia)";
+          document.getElementById('engine-mode-badge').className = "text-[8px] tracking-widest text-neonGreen uppercase font-bold";
+        } 
+        catch (workletError) {
+          console.warn("Utilizando fallback ScriptProcessor:", workletError.message);
+          runFallbackEngine(micStream);
+          isWorkletEngine = false;
+          document.getElementById('engine-mode-badge').textContent = "MOTOR: COMPATIBILIDAD (Local)";
+          document.getElementById('engine-mode-badge').className = "text-[8px] tracking-widest text-neonYellow uppercase font-bold";
+        }
+
+        // Configuración de grabación lineal de canción
+        setupSongRecorder();
+
+        // Sincronización inicial de controles
+        updateRTL(rtlMs);
+        updateBleed(antiBleedCoeff * 100);
+
+        // Remover SplashScreen
+        const splash = document.getElementById('splash');
+        splash.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => splash.remove(), 500);
+
+        resizeCanvas();
+        animateCanvas();
+
+      } catch (err) {
+        console.error("Fallo de hardware:", err);
+        document.getElementById('splash-status').textContent = "ERROR: " + err.message;
+        document.getElementById('splash-status').className = "mt-4 text-[10px] text-neonRed tracking-widest uppercase font-bold";
+      }
+    }
+
+    document.getElementById('btn-start-init').addEventListener('click', () => {
+      startAudioEngine();
+    });
+
+    // ── GESTIÓN DE AUDIO (RC-300 SOUND-ON-SOUND FLUX) ──
+    function looperTrigger() {
+      if (currentEngineState === 'IDLE') {
+        currentEngineState = 'REC_BASE';
+        currentPlayhead = 0;
+        baseRecordBuffer = [];
+        
+        if (isWorkletEngine) {
+          mainAudioNode.port.postMessage({ type: 'SET_STATE', state: 'REC_BASE' });
+        }
+        setStatusText("GRABANDO CAPA BASE... Toca para cerrar.");
+      } 
+      else if (currentEngineState === 'REC_BASE') {
+        if (isWorkletEngine) {
+          mainAudioNode.port.postMessage({ type: 'CLOSE_BASE' });
+        } else {
+          // Fallback manual
+          if (baseRecordBuffer.length > 512) {
+            baseLoopLength = baseRecordBuffer.length;
+            const data = new Float32Array(baseLoopLength);
+            const rtlFrames = Math.round((rtlMs / 1000) * sampleRate);
+            
+            for (let i = 0; i < baseLoopLength; i++) {
+              const srcIdx = rtlFrames > 0 ? (i + rtlFrames) % baseLoopLength : i;
+              data[i] = srcIdx < baseRecordBuffer.length ? baseRecordBuffer[srcIdx] : 0;
+            }
+
+            trackLayers.push({
+              id: Date.now(),
+              data: data,
+              muted: false,
+              rms: calculateBufferRMS(data)
+            });
+            createBaseLayerHTML();
+          }
+          baseRecordBuffer = [];
+          currentPlayhead = 0;
+          currentEngineState = 'PLAYING';
+        }
+        setStatusText("REPRODUCIENDO... Toca para agregar overdub.");
+      } 
+      else if (currentEngineState === 'PLAYING') {
+        // Creamos overdub sincronizado
+        const newLayer = {
+          id: Date.now(),
+          data: new Float32Array(baseLoopLength),
+          muted: false,
+          rms: 0.1
+        };
+        trackLayers.push(newLayer);
+        
+        currentEngineState = 'OVERDUB';
+        if (isWorkletEngine) {
+          mainAudioNode.port.postMessage({ type: 'SET_STATE', state: 'OVERDUB' });
+        }
+        
+        renderLayersListHTML();
+        setStatusText("SOBREGRABANDO EN VIVO... Toca para fijar.");
+      } 
+      else if (currentEngineState === 'OVERDUB') {
+        currentEngineState = 'PLAYING';
+        if (isWorkletEngine) {
+          mainAudioNode.port.postMessage({ type: 'SET_STATE', state: 'PLAYING' });
+        } else {
+          if (trackLayers.length > 0) {
+            const lastIdx = trackLayers.length - 1;
+            trackLayers[lastIdx].rms = calculateBufferRMS(trackLayers[lastIdx].data);
+          }
+        }
+        renderLayersListHTML();
+        setStatusText("REPRODUCIENDO SESIÓN.");
+      }
+    }
+
+    function looperStop() {
+      currentEngineState = 'IDLE';
+      currentPlayhead = 0;
+      baseRecordBuffer = [];
+      
+      if (isWorkletEngine) {
+        mainAudioNode.port.postMessage({ type: 'SET_STATE', state: 'IDLE' });
+      }
+      setStatusText("BUCLE DETENIDO. Toca el círculo para reiniciar.");
+    }
+
+    function looperUndo() {
+      if (trackLayers.length > 0) {
+        trackLayers.pop();
+        if (isWorkletEngine) {
+          mainAudioNode.port.postMessage({ type: 'UNDO_LAYER' });
+        }
+        renderLayersListHTML();
+        setStatusText("DESHACER APLICADO.");
+      }
+    }
+
+    function looperClear() {
+      trackLayers = [];
+      baseLoopLength = 0;
+      currentPlayhead = 0;
+      currentEngineState = 'IDLE';
+      baseRecordBuffer = [];
+      
+      if (isWorkletEngine) {
+        mainAudioNode.port.postMessage({ type: 'SET_STATE', state: 'IDLE' });
+      }
+      renderLayersListHTML();
+      setStatusText("Pistas limpias.");
+    }
+
+    // ── GESTIÓN DE LA GRABACIÓN DE CANCIÓN COMPLETA (LINEAL) ──
+    function setupSongRecorder() {
+      try {
+        const destNode = audioCtx.createMediaStreamDestination();
+        
+        // Conectamos la salida master de la looper al canal de grabación
+        if (mainAudioNode) {
+          mainAudioNode.connect(destNode);
+        }
+
+        // Adicionalmente conectamos el micrófono directo para que registre la voz del usuario
+        // incluso cuando no se esté sobregrabando una capa del looper (Canto Libre)
+        const liveVoiceGain = audioCtx.createGain();
+        liveVoiceGain.gain.value = 1.0; 
+        
+        const micSource = audioCtx.createMediaStreamSource(micStream);
+        micSource.connect(liveVoiceGain);
+        liveVoiceGain.connect(destNode);
+
+        const options = { mimeType: 'audio/webm' };
+        songMediaRecorder = new MediaRecorder(destNode.stream, MediaRecorder.isTypeSupported(options.mimeType) ? options : {});
+        songBlobs = [];
+
+        songMediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            songBlobs.push(e.data);
+          }
+        };
+
+        songMediaRecorder.onstop = () => {
+          document.getElementById('btn-download-song').disabled = false;
+          document.getElementById('btn-download-song').classList.remove('bg-cyberCard', 'text-slate-600');
+          document.getElementById('btn-download-song').classList.add('bg-neonGreen', 'text-cyberBg', 'neon-shadow-green');
+          setStatusText("CANCION COMPLETA CAPTURADA CORRECTAMENTE.");
+        };
+      } catch (err) {
+        console.error("No se pudo iniciar el grabador de canciones:", err);
+      }
+    }
+
+    function toggleSongRecording() {
+      if (!isRecordingSong) {
+        // Iniciar Grabación de Canción
+        isRecordingSong = true;
+        songBlobs = [];
+        songSeconds = 0;
+        
+        document.getElementById('song-timer').textContent = "00:00";
+        document.getElementById('song-rec-label').textContent = "🛑 Detener Grabación";
+        document.getElementById('btn-song-rec').classList.remove('from-neonRed/20', 'to-neonPurple/20', 'text-neonRed');
+        document.getElementById('btn-song-rec').classList.add('bg-neonRed', 'text-white', 'neon-shadow-red');
+
+        songMediaRecorder.start();
+        
+        songTimerInterval = setInterval(() => {
+          songSeconds++;
+          const mins = Math.floor(songSeconds / 60).toString().padStart(2, '0');
+          const secs = (songSeconds % 60).toString().padStart(2, '0');
+          document.getElementById('song-timer').textContent = `${mins}:${secs}`;
+        }, 1000);
+
+        setStatusText("🔴 GRABANDO CANCIÓN COMPLETA (LINEAL)...");
+      } else {
+        // Detener Grabación
+        isRecordingSong = false;
+        clearInterval(songTimerInterval);
+        songMediaRecorder.stop();
+
+        document.getElementById('song-rec-label').textContent = "Grabar Canción Completa";
+        document.getElementById('btn-song-rec').classList.remove('bg-neonRed', 'text-white', 'neon-shadow-red');
+        document.getElementById('btn-song-rec').classList.add('from-neonRed/20', 'to-neonPurple/20', 'text-neonRed');
+        
+        setStatusText("GRABACIÓN DE CANCIÓN COMPLETADA.");
+      }
+    }
+
+    function downloadSong() {
+      if (songBlobs.length === 0) return;
+      const blob = new Blob(songBlobs, { type: 'audio/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `loopera_cancion_${Date.now()}.webm`;
+      a.click();
+      setStatusText("CANCION DESCARGADA CORRECTAMENTE.");
+    }
+
+    // ── CONTROLES EN TIEMPO REAL ──
+    function updateRTL(val) {
+      rtlMs = parseInt(val);
+      document.getElementById('rtl-val').textContent = rtlMs + " ms";
+      const slider = document.getElementById('rtl-slider');
+      const percentage = (rtlMs / slider.max) * 100;
+      slider.style.background = `linear-gradient(to right, #e8c040 0%, #e8c040 ${percentage}%, #1b1836 ${percentage}%, #1b1836 100%)`;
+      
+      if (audioCtx && mainAudioNode && isWorkletEngine) {
+        const frames = Math.round((rtlMs / 1000) * sampleRate);
+        mainAudioNode.port.postMessage({ type: 'SET_RTL', frames: frames });
+      }
+    }
+
+    function updateBleed(val) {
+      antiBleedCoeff = parseFloat(val) / 100.0;
+      document.getElementById('bleed-val').textContent = val + "%";
+      const slider = document.getElementById('bleed-slider');
+      const percentage = val;
+      slider.style.background = `linear-gradient(to right, #4090e8 0%, #4090e8 ${percentage}%, #1b1836 ${percentage}%, #1b1836 100%)`;
+      
+      if (audioCtx && mainAudioNode && isWorkletEngine) {
+        mainAudioNode.port.postMessage({ type: 'SET_BLEED', value: antiBleedCoeff });
+      }
+    }
+
+    function toggleMonitorMode() {
+      speakerMode = !speakerMode;
+      const btn = document.getElementById('btn-monitor-mode');
+      if (speakerMode) {
+        btn.textContent = "DESACTIVADO (MODO ALTAVOZ)";
+        btn.className = "px-3 py-1 bg-neonRed/10 border border-neonRed text-neonRed text-[8px] font-bold tracking-widest rounded-lg transition-all";
+        setStatusText("MODO ALTAVOZ: Retorno apagado para evitar feedback.");
+      } else {
+        btn.textContent = "ACTIVADO (MODO AURICULARES)";
+        btn.className = "px-3 py-1 bg-neonGreen/10 border border-neonGreen text-neonGreen text-[8px] font-bold tracking-widest rounded-lg transition-all";
+        setStatusText("MODO AURICULARES: Retorno directo de voz activo.");
+      }
+
+      if (audioCtx && mainAudioNode && isWorkletEngine) {
+        mainAudioNode.port.postMessage({ type: 'SET_MONITOR', speakerMode: speakerMode });
+      }
+    }
+
+    function toggleSyncPanel() {
+      const panel = document.getElementById('sync-panel');
+      const btn = document.getElementById('btn-sync-toggle');
+      panel.classList.toggle('hidden');
+      btn.classList.toggle('bg-cyberCardLight');
+    }
+
+    // ── RENDERIZACIÓN DE INTERFAZ DE CAPAS ──
+    function createBaseLayerHTML() {
+      if (isWorkletEngine) {
+        trackLayers.push({
+          id: Date.now(),
+          data: null,
+          muted: false,
+          rms: 0.4
+        });
+      }
+      renderLayersListHTML();
+    }
+
+    function renderLayersListHTML() {
+      const container = document.getElementById('layers-container');
+      const counter = document.getElementById('layer-counter');
+      
+      if (trackLayers.length === 0) {
+        container.innerHTML = `
+          <div id="empty-layers-msg" class="flex-1 flex items-center justify-center border border-dashed border-cyberBdr rounded-xl p-6 text-center text-xs text-slate-600 tracking-wider">
+            NINGUNA CAPA GRABADA AÚN
+          </div>
+        `;
+        counter.textContent = "0 CAPAS";
+        return;
+      }
+
+      container.innerHTML = '';
+      counter.textContent = `${trackLayers.length} CAPA${trackLayers.length > 1 ? 'S' : ''}`;
+
+      trackLayers.forEach((layer, idx) => {
+        const isBase = idx === 0;
+        const colorClass = isBase ? 'text-neonGreen' : 'text-neonBlue';
+        const barColor = isBase ? 'bg-neonGreen' : 'bg-neonBlue';
+        const labelText = isBase ? 'BASE' : `CAPA ${idx + 1}`;
+        const isMuted = layer.muted;
+
+        const row = document.createElement('div');
+        row.id = `layer-row-${idx}`;
+        row.className = `flex items-center justify-between gap-4 bg-cyberCard border ${isMuted ? 'border-cyberBdr/30 opacity-40' : 'border-cyberBdr'} rounded-xl p-3 transition-all`;
+        
+        const vuWidth = isMuted ? 0 : Math.min(100, (layer.rms || 0.1) * 200);
+
+        row.innerHTML = `
+          <div class="flex flex-col gap-1 flex-1">
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] font-extrabold tracking-wider ${colorClass}">${labelText}</span>
+              <span class="text-[8px] text-slate-500">SOS COMPENSADO</span>
+            </div>
+            <div class="w-full h-1.5 bg-cyberBg rounded-full overflow-hidden">
+              <div class="h-full ${barColor} opacity-70 transition-all duration-300" style="width: ${vuWidth}%"></div>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button onclick="toggleLayerMute(${idx})" class="px-3 py-1.5 rounded-lg border border-cyberBdr text-[8px] font-bold tracking-widest ${isMuted ? 'text-neonRed border-neonRed bg-neonRed/10' : 'text-slate-400 hover:text-white'} transition-all active:scale-90">
+              ${isMuted ? 'MUTED' : 'MUTE'}
+            </button>
+            <button onclick="deleteLayer(${idx})" class="p-1.5 rounded-lg border border-cyberBdr text-slate-500 hover:text-neonRed hover:border-neonRed transition-all active:scale-90">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        `;
+        container.appendChild(row);
       });
     }
-    return true;
-  }
-}
-registerProcessor('looper', LooperProcessor);
-`;
 
-// ── 2. WAV ENCODER ────────────────────────────────────────────────
-function encodeWAV(samples, sr) {
-  const buf = new ArrayBuffer(44 + samples.length * 2);
-  const v   = new DataView(buf);
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true);
-  str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true);
-  v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
-  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-  str(36, 'data'); v.setUint32(40, samples.length * 2, true);
-  for (let i = 0; i < samples.length; i++)
-    v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, samples[i] * 32767)), true);
-  return buf;
-}
-
-function download(blob, name) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-}
-
-// ── 3. AUDIO ENGINE ──────────────────────────────────────────────
-class LooperEngine {
-  constructor() {
-    this.ctx        = null;
-    this.node       = null;
-    this.recorder   = null;
-    this.sessionChunks = [];
-    this.sessionBlob   = null;
-    this.loopLen    = 0;
-    this.loopSR     = 48000;
-    this.detectedRTL = 0;
-    this.onSnap     = null;
-    this.onEvent    = null;
-  }
-
-  async init() {
-    // AudioContext con latencia mínima
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint: 'interactive'
-    });
-
-    // Mic: desactivar todo procesamiento DSP del SO
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl:  false,
-      sampleRate:       this.ctx.sampleRate
-    }});
-
-    // Worklet desde blob (evita CORS — funciona en cualquier origen)
-    const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
-    const url  = URL.createObjectURL(blob);
-    await this.ctx.audioWorklet.addModule(url);
-    URL.revokeObjectURL(url);
-
-    // Nodos
-    const src  = this.ctx.createMediaStreamSource(stream);
-    this.node  = new AudioWorkletNode(this.ctx, 'looper', {
-      numberOfInputs:    1,
-      numberOfOutputs:   1,
-      outputChannelCount:[1]
-    });
-
-    // Auto-detección de RTL con API del navegador
-    const rtlSec = (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0);
-    this.detectedRTL = Math.round(rtlSec * 1000);
-    this.loopSR = this.ctx.sampleRate;
-    const rtlFrames = Math.round(rtlSec * this.ctx.sampleRate);
-    this.node.port.postMessage({ t: 'RTL', v: rtlFrames });
-
-    // Conexiones de audio
-    src.connect(this.node);
-    this.node.connect(this.ctx.destination);
-
-    // Grabación de sesión completa via MediaRecorder
-    const dest   = this.ctx.createMediaStreamDestination();
-    this.node.connect(dest);
-    const mime   = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-                   ? 'audio/webm;codecs=opus' : 'audio/webm';
-    this.recorder = new MediaRecorder(dest.stream, { mimeType: mime });
-    this.sessionChunks = [];
-    this.recorder.ondataavailable = e => { if (e.data.size > 0) this.sessionChunks.push(e.data); };
-    this.recorder.onstop = () => {
-      this.sessionBlob = new Blob(this.sessionChunks, { type: 'audio/webm' });
-      this.onEvent?.({ t: 'session_ready' });
-    };
-    this.recorder.start(1000); // chunk cada segundo
-
-    // Mensajes del worklet
-    this.node.port.onmessage = e => this._onMsg(e.data);
-
-    return this.detectedRTL;
-  }
-
-  _onMsg(m) {
-    if (m.t === 'snap')    { this.onSnap?.(m); }
-    else if (m.t === 'base')  { this.loopLen = m.len; this.loopSR = m.sr; this.onEvent?.(m); }
-    else if (m.t === 'layer') { this.onEvent?.(m); }
-    else if (m.t === 'stopped' || m.t === 'cleared') {
-      if (m.t === 'stopped') this._stopRecorder();
-      this.onEvent?.(m);
+    function toggleLayerMute(index) {
+      if (isWorkletEngine) {
+        const isMuted = !document.getElementById(`layer-row-${index}`).classList.contains('muted');
+        mainAudioNode.port.postMessage({ type: 'MUTE_LAYER', index: index, muted: isMuted });
+      } else {
+        if (trackLayers[index]) {
+          trackLayers[index].muted = !trackLayers[index].muted;
+        }
+      }
+      setTimeout(() => renderLayersListHTML(), 50);
     }
-    else if (m.t === 'loop') {
-      const pcm = new Float32Array(m.data);
-      const wav = encodeWAV(pcm, m.sr);
-      download(new Blob([wav], { type: 'audio/wav' }), `loop_${Date.now()}.wav`);
+
+    function deleteLayer(index) {
+      if (isWorkletEngine) {
+        mainAudioNode.port.postMessage({ type: 'DELETE_LAYER', index: index });
+      } else {
+        if (index >= 0 && index < trackLayers.length) {
+          trackLayers.splice(index, 1);
+        }
+      }
+      setTimeout(() => renderLayersListHTML(), 50);
     }
-  }
 
-  _stopRecorder() {
-    if (this.recorder?.state === 'recording') this.recorder.stop();
-  }
+    // ── RENDERIZADO VISUAL DEL ANILLO DE TIEMPO (CANVAS) ──
+    const canvasObj = document.getElementById('looper-canvas');
+    const ctx2d = canvasObj.getContext('2d');
+    let playheadProgressVisual = 0;
 
-  recToggle()  { this.node?.port.postMessage({ t: 'REC' }); }
-  stop()       { this.node?.port.postMessage({ t: 'STOP' }); }
-  undo()       { this.node?.port.postMessage({ t: 'UNDO' }); }
-  clear()      { this.loopLen = 0; this.node?.port.postMessage({ t: 'CLEAR' }); }
-  mute(i)      { this.node?.port.postMessage({ t: 'MUTE', i }); }
-  exportLoop() { this.node?.port.postMessage({ t: 'EXPORT' }); }
-
-  setRTL(ms) {
-    const frames = Math.round(ms / 1000 * (this.ctx?.sampleRate ?? 48000));
-    this.node?.port.postMessage({ t: 'RTL', v: frames });
-  }
-
-  downloadSession() {
-    if (this.sessionBlob) {
-      download(this.sessionBlob, `loopera_session_${Date.now()}.webm`);
-    } else {
-      this._stopRecorder();
-      setStatus('Finalizando sesión…');
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvasObj.getBoundingClientRect();
+      canvasObj.width = rect.width * dpr;
+      canvasObj.height = rect.height * dpr;
+      ctx2d.scale(dpr, dpr);
     }
-  }
-}
 
-// ── 4. ESTADO GLOBAL ─────────────────────────────────────────────
-const engine = new LooperEngine();
-let snap = { s: 'IDLE', n: 0, p: 0, rms: 0, onset: false, muted: [], lrms: [] };
-let sessionReady = false;
-let loopReady    = false;
-let calibOpen    = false;
-let currentRTL   = 0;
+    function animateCanvas() {
+      requestAnimationFrame(animateCanvas);
+      
+      const W = canvasObj.width / window.devicePixelRatio;
+      const H = canvasObj.height / window.devicePixelRatio;
+      const cx = W / 2;
+      const cy = H / 2;
+      const radius = Math.min(W, H) * 0.44;
 
-// ── 5. CANVAS ────────────────────────────────────────────────────
-const canvas = document.getElementById('c');
-const ctx2d  = canvas.getContext('2d');
+      ctx2d.clearRect(0, 0, W, H);
 
-function resizeCanvas() {
-  const wrap = document.getElementById('canvas-wrap');
-  const s = wrap.offsetWidth * window.devicePixelRatio;
-  canvas.width  = s;
-  canvas.height = s;
-}
-window.addEventListener('resize', resizeCanvas);
+      let colorArc = '#4090e8'; 
+      if (currentEngineState === 'REC_BASE') colorArc = '#e84040';
+      if (currentEngineState === 'PLAYING') colorArc = '#40e870';
+      if (currentEngineState === 'OVERDUB') colorArc = '#e84040';
 
-const STATE_COLOR = {
-  'IDLE':     '#4090E8',
-  'REC_BASE': '#E84040',
-  'PLAYING':  '#40E870',
-  'OVERDUB':  '#E84040'
-};
-const STATE_LABEL = {
-  'IDLE':     ['TAP', 'REC BASE'],
-  'REC_BASE': ['CERRAR', 'BASE'],
-  'PLAYING':  ['TAP', 'OVERDUB'],
-  'OVERDUB':  ['CERRAR', 'CAPA']
-};
-
-let onsetFlash = 0;
-let animPh = 0; // phase for idle animation
-
-function draw(ts) {
-  requestAnimationFrame(draw);
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2;
-  const R  = Math.min(W, H) * 0.44;
-  const dpr = window.devicePixelRatio || 1;
-
-  ctx2d.clearRect(0, 0, W, H);
-
-  const st    = snap.s || 'IDLE';
-  const color = STATE_COLOR[st] || '#4090E8';
-  const prog  = snap.p || 0;
-  const rms   = snap.rms || 0;
-
-  // ── Pista base (fondo del arco) ──────────────────
-  ctx2d.beginPath();
-  ctx2d.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx2d.strokeStyle = '#1A1A28';
-  ctx2d.lineWidth   = 10 * dpr;
-  ctx2d.stroke();
-
-  // ── Arco de progreso ─────────────────────────────
-  if (st !== 'IDLE' || prog > 0) {
-    const startA = -Math.PI / 2;
-    const endA   = startA + prog * Math.PI * 2;
-    ctx2d.beginPath();
-    ctx2d.arc(cx, cy, R, startA, endA);
-    ctx2d.strokeStyle = color;
-    ctx2d.lineWidth   = 10 * dpr;
-    ctx2d.lineCap     = 'round';
-    ctx2d.stroke();
-
-    // Punto cabezal de playhead
-    if (prog > 0.02) {
-      const px = cx + R * Math.cos(endA);
-      const py = cy + R * Math.sin(endA);
       ctx2d.beginPath();
-      ctx2d.arc(px, py, 6 * dpr, 0, Math.PI * 2);
-      ctx2d.fillStyle = color;
+      ctx2d.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx2d.strokeStyle = '#1b1836';
+      ctx2d.lineWidth = 10;
+      ctx2d.stroke();
+
+      if (currentEngineState !== 'IDLE') {
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (playheadProgressVisual * Math.PI * 2);
+        
+        ctx2d.beginPath();
+        ctx2d.arc(cx, cy, radius, startAngle, endAngle);
+        ctx2d.strokeStyle = colorArc;
+        ctx2d.lineWidth = 10;
+        ctx2d.lineCap = 'round';
+        ctx2d.stroke();
+
+        const markerX = cx + radius * Math.cos(endAngle);
+        const markerY = cy + radius * Math.sin(endAngle);
+        ctx2d.beginPath();
+        ctx2d.arc(markerX, markerY, 7, 0, Math.PI * 2);
+        ctx2d.fillStyle = colorArc;
+        ctx2d.fill();
+      }
+
+      const vuRadius = radius * 0.65;
+      const vuScale = Math.min(1.2, 0.2 + (currentRMS * 6.5));
+      
+      const gradient = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, vuRadius * vuScale);
+      gradient.addColorStop(0, colorArc + '44');
+      gradient.addColorStop(0.8, colorArc + '11');
+      gradient.addColorStop(1, 'transparent');
+      
+      ctx2d.beginPath();
+      ctx2d.arc(cx, cy, vuRadius * vuScale, 0, Math.PI * 2);
+      ctx2d.fillStyle = gradient;
       ctx2d.fill();
+
+      ctx2d.beginPath();
+      ctx2d.arc(cx, cy, radius * 0.65, 0, Math.PI * 2);
+      ctx2d.fillStyle = '#080710';
+      ctx2d.strokeStyle = '#2a2652';
+      ctx2d.lineWidth = 2;
+      ctx2d.fill();
+      ctx2d.stroke();
     }
-  }
 
-  // ── Animación idle (arco girando) ────────────────
-  if (st === 'IDLE') {
-    animPh = (animPh + 0.008) % (Math.PI * 2);
-    ctx2d.beginPath();
-    ctx2d.arc(cx, cy, R, animPh, animPh + 0.8);
-    ctx2d.strokeStyle = '#4090E820';
-    ctx2d.lineWidth   = 10 * dpr;
-    ctx2d.lineCap     = 'round';
-    ctx2d.stroke();
-  }
+    canvasObj.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      looperTrigger();
+    });
+    canvasObj.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      looperTrigger();
+    }, { passive: false });
 
-  // ── VU glow (círculo central que respira con el audio) ──
-  const vu = Math.min(rms * 10, 1);
-  if (vu > 0.01) {
-    const gr = R * 0.65 * vu;
-    const grd = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, gr);
-    grd.addColorStop(0, color + '45');
-    grd.addColorStop(1, color + '00');
-    ctx2d.beginPath();
-    ctx2d.arc(cx, cy, gr, 0, Math.PI * 2);
-    ctx2d.fillStyle = grd;
-    ctx2d.fill();
-  }
+    // ── TELEMETRÍA Y CONTROL DE LA INTERFAZ ──
+    function updateUIState(state, progress, rms) {
+      currentEngineState = state;
+      playheadProgressVisual = progress;
+      
+      const actionTxt = document.getElementById('overlay-action');
+      const statusTxt = document.getElementById('overlay-status');
+      const timerTxt = document.getElementById('overlay-timer');
+      const badge = document.getElementById('state-indicator');
 
-  // ── Círculo interior ────────────────────────────
-  ctx2d.beginPath();
-  ctx2d.arc(cx, cy, R * 0.65, 0, Math.PI * 2);
-  ctx2d.fillStyle = '#0A0A0F';
-  ctx2d.fill();
-  ctx2d.strokeStyle = '#1A1A28';
-  ctx2d.lineWidth   = 1 * dpr;
-  ctx2d.stroke();
+      if (baseLoopLength > 0) {
+        const totalSeconds = baseLoopLength / sampleRate;
+        const elapsed = progress * totalSeconds;
+        timerTxt.textContent = `${elapsed.toFixed(1)}s / ${totalSeconds.toFixed(1)}s`;
+      } else {
+        timerTxt.textContent = "00:00.0";
+      }
 
-  // ── Flash de onset ──────────────────────────────
-  if (snap.onset) onsetFlash = 8;
-  if (onsetFlash > 0) {
-    onsetFlash--;
-    ctx2d.beginPath();
-    ctx2d.arc(cx, cy, R + 8 * dpr, 0, Math.PI * 2);
-    ctx2d.strokeStyle = `#E8C040${Math.floor(onsetFlash * 28).toString(16).padStart(2,'0')}`;
-    ctx2d.lineWidth   = 4 * dpr;
-    ctx2d.stroke();
-  }
+      if (state === 'IDLE') {
+        actionTxt.textContent = "TOCAR";
+        statusTxt.textContent = "EMPEZAR";
+        statusTxt.className = "text-base font-black tracking-wider text-white uppercase";
+        badge.textContent = "STANDBY";
+        badge.className = "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-cyberCard border border-cyberBdr text-slate-500";
+      }
+      else if (state === 'REC_BASE') {
+        actionTxt.textContent = "CERRAR";
+        statusTxt.textContent = "BASE";
+        statusTxt.className = "text-base font-black tracking-wider text-neonRed uppercase animate-pulse";
+        badge.textContent = "● REC BASE";
+        badge.className = "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-neonRed/10 border border-neonRed text-neonRed";
+      }
+      else if (state === 'PLAYING') {
+        actionTxt.textContent = "TOCAR";
+        statusTxt.textContent = "OVERDUB";
+        statusTxt.className = "text-base font-black tracking-wider text-neonGreen uppercase";
+        badge.textContent = "▶ PLAYING";
+        badge.className = "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-neonGreen/10 border border-neonGreen text-neonGreen";
+      }
+      else if (state === 'OVERDUB') {
+        actionTxt.textContent = "FIJAR";
+        statusTxt.textContent = "CAPA";
+        statusTxt.className = "text-base font-black tracking-wider text-neonRed uppercase animate-pulse";
+        badge.textContent = "● OVERDUB";
+        badge.className = "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-neonRed/10 border border-neonRed text-neonRed animate-pulse";
+      }
+    }
 
-  // ── Indicador de estado (punto de color) ────────
-  ctx2d.beginPath();
-  ctx2d.arc(cx, cy - R * 0.38, 5 * dpr, 0, Math.PI * 2);
-  ctx2d.fillStyle = color;
-  ctx2d.fill();
-  if (st === 'REC_BASE' || st === 'OVERDUB') {
-    // Pulso de grabación
-    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
-    ctx2d.beginPath();
-    ctx2d.arc(cx, cy - R * 0.38, (5 + pulse * 6) * dpr, 0, Math.PI * 2);
-    ctx2d.strokeStyle = color + '60';
-    ctx2d.lineWidth = 2 * dpr;
-    ctx2d.stroke();
-  }
+    function setStatusText(msg) {
+      document.getElementById('status-bar').textContent = msg;
+    }
 
-  // ── Texto central ───────────────────────────────
-  ctx2d.textAlign    = 'center';
-  ctx2d.textBaseline = 'middle';
-  ctx2d.fillStyle    = color;
-  ctx2d.font         = `bold ${14 * dpr}px 'Courier New',monospace`;
-  const [line1, line2] = STATE_LABEL[st] || ['', ''];
-  ctx2d.fillText(line1, cx, cy - 10 * dpr);
-  ctx2d.font         = `bold ${16 * dpr}px 'Courier New',monospace`;
-  ctx2d.fillText(line2, cx, cy + 8 * dpr);
-
-  // ── Tiempo / capas ──────────────────────────────
-  if (engine.loopLen > 0) {
-    const totalSec = engine.loopLen / engine.loopSR;
-    const curSec   = prog * totalSec;
-    const fmt = s => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toFixed(1).padStart(4,'0')}`;
-    ctx2d.font      = `${9 * dpr}px 'Courier New',monospace`;
-    ctx2d.fillStyle = '#888899';
-    ctx2d.fillText(`${fmt(curSec)} / ${fmt(totalSec)}`, cx, cy + 28 * dpr);
-  }
-
-  if (snap.n > 0) {
-    ctx2d.font      = `bold ${9 * dpr}px 'Courier New',monospace`;
-    ctx2d.fillStyle = '#4090E8';
-    ctx2d.fillText(`${snap.n} CAPA${snap.n > 1 ? 'S' : ''}`, cx, cy + 42 * dpr);
-  }
-}
-requestAnimationFrame(draw);
-
-// ── 6. UI ────────────────────────────────────────────────────────
-function setStatus(msg, color) {
-  const el = document.getElementById('status');
-  el.textContent = msg;
-  el.style.color = color || 'var(--mut)';
-}
-
-function updateBadge(state) {
-  const badge = document.getElementById('state-badge');
-  const labels = { IDLE:'IDLE', REC_BASE:'● REC BASE', PLAYING:'▶ PLAYING', OVERDUB:'● OVERDUB' };
-  const colors = { IDLE:'var(--mut)', REC_BASE:'var(--red)', PLAYING:'var(--grn)', OVERDUB:'var(--red)' };
-  badge.textContent = labels[state] || state;
-  badge.style.color  = colors[state] || 'var(--mut)';
-  badge.style.borderColor = colors[state] || 'var(--bdr)';
-}
-
-function updateLayerList() {
-  const el = document.getElementById('layers');
-  if (snap.n === 0) { el.innerHTML = ''; return; }
-  el.innerHTML = '';
-  for (let i = 0; i < snap.n; i++) {
-    const muted = snap.muted[i] || false;
-    const lrms  = snap.lrms[i] || 0;
-    const barW  = Math.min(Math.round(lrms * 400), 100);
-    const color = i === 0 ? 'var(--grn)' : 'var(--blu)';
-    const label = i === 0 ? 'BASE' : `L ${i + 1}`;
-    const div   = document.createElement('div');
-    div.className = 'layer' + (muted ? ' muted' : '');
-    div.innerHTML = `
-      <div class="lname" style="color:${color}">${label}</div>
-      <div class="lbar"><div class="lbar-fill" style="width:${barW}%;background:${color}80"></div></div>
-      <button class="lmute" onclick="cmdMute(${i})">${muted ? 'MUTED' : 'MUTE'}</button>`;
-    el.appendChild(div);
-  }
-}
-
-engine.onSnap = (s) => {
-  snap = s;
-  updateBadge(s.s);
-  updateLayerList();
-};
-
-engine.onEvent = (e) => {
-  if (e.t === 'base')    { loopReady = true; setStatus(`Base fijada — ${(engine.loopLen/engine.loopSR).toFixed(2)}s`, 'var(--grn)'); }
-  if (e.t === 'layer')   { setStatus(`Capa ${e.n} fijada`, 'var(--blu)'); }
-  if (e.t === 'stopped') { sessionReady = true; document.getElementById('btn-session').classList.add('ready'); setStatus('Sesión lista para descargar', 'var(--grn)'); }
-  if (e.t === 'cleared') { loopReady = false; sessionReady = false; document.getElementById('btn-session').classList.remove('ready'); document.getElementById('btn-loop').classList.remove('loop-ready'); setStatus('Motor limpio', 'var(--mut)'); }
-  if (e.t === 'session_ready') { document.getElementById('btn-session').classList.add('ready'); }
-};
-
-// ── 7. COMANDOS ──────────────────────────────────────────────────
-async function startEngine() {
-  try {
-    setStatus('Abriendo micrófono…');
-    const rtl = await engine.init();
-    // Aplicar RTL auto-detectado al slider
-    currentRTL = rtl;
-    const slider = document.getElementById('rtl-slider');
-    slider.value = Math.min(rtl, 200);
-    document.getElementById('rtl-val').textContent = Math.round(rtl) + ' ms';
-    slider.style.setProperty('--pct', Math.min(rtl / 200 * 100, 100) + '%');
-    setStatus(`Motor listo · RTL detectado: ~${rtl} ms`, 'var(--grn)');
-    updateBadge('IDLE');
-  } catch (err) {
-    setStatus('Error: ' + err.message, 'var(--red)');
-    console.error(err);
-  }
-}
-
-function cmdREC()          { engine.recToggle(); }
-function cmdStop()         { engine.stop(); }
-function cmdUndo()         { engine.undo(); setStatus('Undo última capa', 'var(--blu)'); }
-function cmdClear()        { engine.clear(); snap = { s:'IDLE', n:0, p:0, rms:0, onset:false, muted:[], lrms:[] }; updateLayerList(); updateBadge('IDLE'); }
-function cmdMute(i)        { engine.mute(i); }
-function cmdExportSession(){ engine.downloadSession(); setStatus('Descargando sesión WebM…', 'var(--yel)'); }
-function cmdExportLoop()   {
-  if (!loopReady) { setStatus('Graba un loop primero', 'var(--mut)'); return; }
-  engine.exportLoop();
-  document.getElementById('btn-loop').classList.add('loop-ready');
-  setStatus('Exportando loop WAV…', 'var(--yel)');
-}
-function toggleCalib() {
-  calibOpen = !calibOpen;
-  document.getElementById('calib').classList.toggle('open', calibOpen);
-  document.getElementById('btn-calib').classList.toggle('en', true);
-}
-function onRTL(val) {
-  currentRTL = parseFloat(val);
-  document.getElementById('rtl-val').textContent = Math.round(currentRTL) + ' ms';
-  const pct = (currentRTL / 200) * 100;
-  document.getElementById('rtl-slider').style.setProperty('--pct', pct + '%');
-  engine.setRTL(currentRTL);
-}
-
-// ── 8. CANVAS TAP ────────────────────────────────────────────────
-let engineStarted = false;
-
-canvas.addEventListener('touchstart', async (e) => {
-  e.preventDefault();
-  if (!engineStarted) {
-    engineStarted = true;
-    await startEngine();
-  }
-  cmdREC();
-}, { passive: false });
-
-canvas.addEventListener('click', async () => {
-  if (!engineStarted) {
-    engineStarted = true;
-    await startEngine();
-  }
-  cmdREC();
-});
-
-// ── 9. SPLASH ────────────────────────────────────────────────────
-document.getElementById('splash').addEventListener('click', () => {
-  document.getElementById('splash').style.display = 'none';
-  document.getElementById('app').classList.add('visible');
-  resizeCanvas();
-  setStatus('Toca el círculo para comenzar a grabar');
-});
-
-document.getElementById('splash').addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  document.getElementById('splash').style.display = 'none';
-  document.getElementById('app').classList.add('visible');
-  resizeCanvas();
-  setStatus('Toca el círculo para comenzar a grabar');
-}, { passive: false });
-</script>
+    function calculateBufferRMS(buf) {
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      return Math.sqrt(sum / buf.length);
+    }
+  </script>
 </body>
 </html>
