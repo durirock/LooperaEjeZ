@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0A0A0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Loopera Eje Z</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root {
+  --bg:    #0A0A0F;
+  --card:  #12121A;
+  --card2: #1A1A28;
+  --grn:   #40E870;
+  --red:   #E84040;
+  --blu:   #4090E8;
+  --yel:   #E8C040;
+  --txt:   #EEEEF0;
+  --mut:   #666680;
+  --bdr:   #222235;
+}
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html,body {
+  height:100%; background:var(--bg); color:var(--txt);
+  font-family:'Courier New',Courier,monospace;
+  overflow:hidden; user-select:none;
+}
+#splash {
+  position:fixed; inset:0; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:24px; z-index:100; cursor:pointer;
+}
+#splash .logo { font-size:28px; font-weight:700; letter-spacing:6px; color:var(--txt); }
+#splash .sub  { font-size:11px; letter-spacing:3px; color:var(--mut); }
+#splash .tap  {
+  margin-top:32px; font-size:13px; letter-spacing:4px; color:var(--grn);
+  animation:pulse 1.6s ease-in-out infinite;
+}
+.ring-splash {
+  width:120px; height:120px; border-radius:50%;
+  border:3px solid var(--card2);
+  border-top-color:var(--grn);
+  animation:spin 3s linear infinite;
+}
+@keyframes spin  { to { transform:rotate(360deg); } }
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+#app {
+  display:none; flex-direction:column; align-items:center;
+  height:100%; padding:env(safe-area-inset-top,12px) 16px env(safe-area-inset-bottom,12px);
+  gap:10px; overflow:hidden;
+}
+#app.visible { display:flex; }
+
+/* ── HEADER ── */
+header {
+  width:100%; display:flex; justify-content:space-between; align-items:center;
+  flex-shrink:0; padding:4px 0;
+}
+.title { font-size:16px; font-weight:700; letter-spacing:4px; color:var(--txt); }
+#state-badge {
+  font-size:10px; font-weight:700; letter-spacing:2px;
+  padding:4px 10px; border-radius:20px; border:1px solid var(--card2);
+  transition:all .2s;
+}
+
+/* ── CANVAS ── */
+#canvas-wrap {
+  flex-shrink:0; position:relative;
+  width:min(280px,70vw); height:min(280px,70vw);
+}
+#c {
+  width:100%; height:100%; cursor:pointer; border-radius:50%;
+  display:block;
+}
+#c:active { opacity:.9; }
+
+/* ── CONTROLS ── */
+#controls {
+  display:flex; justify-content:space-around; align-items:center;
+  width:100%; flex-shrink:0;
+}
+.ctrl {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  min-width:56px; padding:8px 4px; border-radius:12px;
+  border:none; background:none; cursor:pointer; color:var(--mut);
+  transition:all .15s;
+}
+.ctrl:active { transform:scale(.92); }
+.ctrl svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; }
+.ctrl span { font-size:8px; letter-spacing:2px; font-weight:700; }
+.ctrl.en { color:var(--txt); }
+
+/* ── CALIB PANEL ── */
+#calib {
+  width:100%; background:var(--card); border-radius:12px;
+  padding:12px 16px; border:1px solid var(--bdr);
+  flex-shrink:0; display:none;
+}
+#calib.open { display:block; }
+#calib .row { display:flex; align-items:center; gap:10px; margin-top:8px; }
+#calib label { font-size:10px; letter-spacing:2px; color:var(--yel); font-weight:700; }
+#calib .hint { font-size:9px; color:var(--mut); margin-top:6px; line-height:1.5; }
+#rtl-slider {
+  flex:1; -webkit-appearance:none; height:4px;
+  background:linear-gradient(to right, var(--yel) 0%, var(--yel) var(--pct,30%), var(--card2) var(--pct,30%));
+  border-radius:2px; outline:none;
+}
+#rtl-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+  background:var(--yel); cursor:pointer; box-shadow:0 0 8px #E8C04060;
+}
+#rtl-val { font-size:13px; font-weight:700; color:var(--yel); min-width:52px; text-align:right; }
+
+/* ── LAYERS ── */
+#layers { width:100%; flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
+.layer {
+  display:flex; align-items:center; gap:10px;
+  background:var(--card); border-radius:10px; border:1px solid var(--bdr);
+  padding:8px 12px; flex-shrink:0; transition:opacity .2s;
+}
+.layer.muted { opacity:.4; }
+.layer .lname { font-size:11px; font-weight:700; min-width:36px; }
+.layer .lbar { flex:1; height:6px; background:var(--card2); border-radius:3px; overflow:hidden; }
+.layer .lbar-fill { height:100%; border-radius:3px; transition:width .1s; }
+.layer .lmute {
+  background:none; border:1px solid var(--bdr); border-radius:6px;
+  color:var(--mut); font-size:9px; letter-spacing:1px; padding:4px 8px;
+  cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.layer .lmute:active { transform:scale(.9); }
+.layer.muted .lmute { color:var(--red); border-color:var(--red); }
+
+/* ── FOOTER ── */
+footer {
+  width:100%; flex-shrink:0; display:flex; flex-direction:column;
+  align-items:center; gap:8px;
+}
+#exports { display:flex; gap:10px; width:100%; }
+.exp-btn {
+  flex:1; padding:10px 0; border-radius:10px; border:1px solid var(--bdr);
+  background:var(--card); color:var(--mut); font-size:10px; letter-spacing:2px;
+  font-weight:700; font-family:inherit; cursor:pointer; transition:all .2s;
+}
+.exp-btn:active { transform:scale(.97); }
+.exp-btn.ready { color:var(--grn); border-color:var(--grn); }
+.exp-btn.loop-ready { color:var(--blu); border-color:var(--blu); }
+.brand { font-size:8px; letter-spacing:2px; color:var(--mut); opacity:.4; }
+#status { font-size:10px; letter-spacing:1px; color:var(--mut); min-height:14px; }
+
+/* ── SCROLLBAR ── */
+#layers::-webkit-scrollbar { width:2px; }
+#layers::-webkit-scrollbar-track { background:transparent; }
+#layers::-webkit-scrollbar-thumb { background:var(--bdr); border-radius:1px; }
+</style>
+</head>
+<body>
+
+<!-- ── SPLASH ── -->
+<div id="splash">
+  <div class="ring-splash"></div>
+  <div class="logo">LOOPERA</div>
+  <div class="sub">EJE · Z · CHAMALANQUIMYST LABS</div>
+  <div class="tap">▸ TOCA PARA INICIAR</div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <header>
+    <div class="title">LOOPERA  EJE·Z</div>
+    <div id="state-badge">IDLE</div>
+  </header>
+
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl" id="btn-stop" onclick="cmdStop()">
+      <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" stroke-width="1.8"/></svg>
+      <span>STOP</span>
+    </button>
+    <button class="ctrl en" id="btn-undo" onclick="cmdUndo()">
+      <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a5 5 0 010 10h-2"/></svg>
+      <span>UNDO</span>
+    </button>
+    <button class="ctrl en" id="btn-clear" onclick="cmdClear()">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      <span>CLEAR</span>
+    </button>
+    <button class="ctrl en" id="btn-calib" onclick="toggleCalib()">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <span>CALIB</span>
+    </button>
+  </div>
+
+  <div id="calib">
+    <label>COMPENSACIÓN RTL (LATENCIA)</label>
+    <div class="row">
+      <input type="range" id="rtl-slider" min="0" max="200" value="0" step="1"
+        oninput="onRTL(this.value)">
+      <div id="rtl-val">0 ms</div>
+    </div>
+    <div class="hint">
+      Si las capas suenan "atrás del beat" → sube el valor.<br>
+      Cable USB-C/jack: 40–90 ms · Bluetooth: 100–200 ms
+    </div>
+  </div>
+
+  <div id="layers"></div>
+
+  <footer>
+    <div id="exports">
+      <button class="exp-btn" id="btn-session" onclick="cmdExportSession()">⬇ SESIÓN WEBM</button>
+      <button class="exp-btn" id="btn-loop" onclick="cmdExportLoop()">⬇ LOOP WAV</button>
+    </div>
+    <div id="status">Motor listo · Toca el círculo para grabar</div>
+    <div class="brand">CHAMALANQUIMYST LABS · WILD MEDICINE</div>
+  </footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// LOOPERA EJE Z — Web Audio PWA
+// Motor: AudioWorkletProcessor (equivalente a LooperEngine.cpp)
+// Compensación RTL circular · Soft-limiter bus máster · Export WAV
+// ═══════════════════════════════════════════════════════════════════
+
+// ── 0. Service Worker ──────────────────────────────────────────────
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+
+// ── 1. WORKLET CODE (embebido como blob — evita CORS) ──────────────
+const WORKLET_CODE = `
+'use strict';
+const SOFT_TH = 0.708;
+
+class LooperProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.state    = 'IDLE';
+    this.layers   = [];      // [{data:Float32Array, muted:bool, rms:float}]
+    this.loopLen  = 0;
+    this.ph       = 0;       // playhead
+    this.recBuf   = null;
+    this.recPos   = 0;
+    this.maxRec   = sampleRate * 240; // 4 min max
+    this.rtl      = 0;       // RTL en frames
+    this.env      = 0;       // envelope para onset
+    this.snapT    = 0;
+    this.snapI    = Math.floor(sampleRate / 30); // 30fps
+    this.port.onmessage = e => this._cmd(e.data);
+  }
+
+  _cmd(m) {
+    switch (m.t) {
+      case 'REC':
+        if      (this.state === 'IDLE')    { this.recBuf = new Float32Array(this.maxRec); this.recPos = 0; this.state = 'REC_BASE'; }
+        else if (this.state === 'REC_BASE') this._finalBase();
+        else if (this.state === 'PLAYING') { this.recBuf = new Float32Array(this.loopLen); this.recPos = 0; this.state = 'OVERDUB'; }
+        else if (this.state === 'OVERDUB')  this._finalLayer();
+        break;
+      case 'STOP':
+        if (this.state === 'OVERDUB')   this._finalLayer();
+        if (this.state === 'REC_BASE')  this._finalBase();
+        this.state = 'IDLE';
+        this.port.postMessage({ t: 'stopped' });
+        break;
+      case 'UNDO': {
+        const i = this.layers.length - 1;
+        if (i >= 1) this.layers[i].muted = !this.layers[i].muted;
+        break;
+      }
+      case 'CLEAR':
+        this.layers = []; this.loopLen = 0; this.ph = 0;
+        this.recBuf = null; this.recPos = 0; this.state = 'IDLE'; this.env = 0;
+        this.port.postMessage({ t: 'cleared' });
+        break;
+      case 'MUTE':
+        if (this.layers[m.i]) this.layers[m.i].muted = !this.layers[m.i].muted;
+        break;
+      case 'RTL':
+        this.rtl = m.v;
+        break;
+      case 'EXPORT':
+        if (this.loopLen > 0) {
+          const mix = new Float32Array(this.loopLen);
+          for (let n = 0; n < this.loopLen; n++) {
+            let s = 0;
+            for (const l of this.layers) if (!l.muted) s += l.data[n];
+            mix[n] = this._sl(s);
+          }
+          this.port.postMessage({ t: 'loop', data: mix.buffer, sr: sampleRate }, [mix.buffer]);
+        }
+        break;
+    }
+  }
+
+  // Shift circular hacia atrás — IDÉNTICO a LooperEngine.cpp::applyRTLShift
+  // dst[n] = src[(n + rtl) % len]  → adelanta lectura = atrasa señal = compensa latencia
+  _shift(dst, src, srcLen) {
+    const len = dst.length, r = this.rtl;
+    for (let n = 0; n < len; n++) {
+      const si = r > 0 ? (n + r) % len : n;
+      dst[n] = si < srcLen ? src[si] : 0;
+    }
+  }
+
+  _finalBase() {
+    if (this.recPos < 512) { this.state = 'IDLE'; return; }
+    this.loopLen = this.recPos;
+    const data = new Float32Array(this.loopLen);
+    this._shift(data, this.recBuf, this.recPos);
+    const rms = this._computeRMS(data);
+    this.layers = [{ data, muted: false, rms }];
+    this.ph = 0; this.recBuf = null; this.recPos = 0;
+    this.state = 'PLAYING';
+    this.port.postMessage({ t: 'base', len: this.loopLen, sr: sampleRate });
+  }
+
+  _finalLayer() {
+    if (this.layers.length >= 64) { this.state = 'PLAYING'; return; }
+    const data = new Float32Array(this.loopLen);
+    this._shift(data, this.recBuf, Math.min(this.recPos, this.loopLen));
+    const rms = this._computeRMS(data);
+    this.layers.push({ data, muted: false, rms });
+    this.recBuf = null; this.recPos = 0;
+    this.state = 'PLAYING';
+    this.port.postMessage({ t: 'layer', n: this.layers.length });
+  }
+
+  _computeRMS(buf) {
+    let e = 0;
+    for (let i = 0; i < buf.length; i++) e += buf[i] * buf[i];
+    return Math.sqrt(e / buf.length);
+  }
+
+  // Soft-limiter tanh en bus máster — IDÉNTICO a LooperEngine.cpp::softLimit
+  _sl(x) {
+    const T = SOFT_TH, k = 1 / (1 - T);
+    if (x >  T) return  T + (1 - T) * Math.tanh((x -  T) * k);
+    if (x < -T) return -T - (1 - T) * Math.tanh((-x - T) * k);
+    return x;
+  }
+
+  // ── EL CALLBACK DE AUDIO — orden fijo del contrato (Anexo 2.1-BIS) ──
+  process(inputs, outputs) {
+    const mic = inputs[0]?.[0];
+    const out = outputs[0]?.[0];
+    if (!out) return true;
+    const N = out.length;
+    let energy = 0;
+
+    for (let i = 0; i < N; i++) {
+      // 1. Mezcla de capas activas
+      let mix = 0;
+      if (this.state === 'PLAYING' || this.state === 'OVERDUB') {
+        for (const l of this.layers) if (!l.muted) mix += l.data[this.ph];
+      }
+
+      // 2. Soft-limiter en bus máster
+      const s = this._sl(mix);
+      out[i] = s;
+      energy += s * s;
+
+      // 3. Captura del mic (DESPUÉS de escribir la salida)
+      if ((this.state === 'REC_BASE' || this.state === 'OVERDUB') && mic && this.recBuf) {
+        if (this.recPos < this.recBuf.length) {
+          this.recBuf[this.recPos++] = mic[i];
+          if (this.state === 'REC_BASE' && this.recPos >= this.recBuf.length) this._finalBase();
+        }
+      }
+
+      // 4. Avance del playhead
+      if (this.loopLen > 0 && ++this.ph >= this.loopLen) this.ph = 0;
+    }
+
+    // 5. Snapshot ~30fps (una vez por bloque, no por sample)
+    this.snapT += N;
+    if (this.snapT >= this.snapI) {
+      this.snapT = 0;
+      const rms = Math.sqrt(energy / N);
+      this.env = 0.95 * this.env + 0.05 * rms;
+      this.port.postMessage({
+        t:      'snap',
+        s:      this.state,
+        n:      this.layers.length,
+        p:      this.loopLen > 0 ? this.ph / this.loopLen : 0,
+        rms,
+        onset:  rms > this.env * 1.5 && rms > 0.02,
+        muted:  this.layers.map(l => l.muted),
+        lrms:   this.layers.map(l => l.rms)
+      });
+    }
+    return true;
+  }
+}
+registerProcessor('looper', LooperProcessor);
+`;
+
+// ── 2. WAV ENCODER ────────────────────────────────────────────────
+function encodeWAV(samples, sr) {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v   = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true);
+  str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++)
+    v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, samples[i] * 32767)), true);
+  return buf;
+}
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+// ── 3. AUDIO ENGINE ──────────────────────────────────────────────
+class LooperEngine {
+  constructor() {
+    this.ctx        = null;
+    this.node       = null;
+    this.recorder   = null;
+    this.sessionChunks = [];
+    this.sessionBlob   = null;
+    this.loopLen    = 0;
+    this.loopSR     = 48000;
+    this.detectedRTL = 0;
+    this.onSnap     = null;
+    this.onEvent    = null;
+  }
+
+  async init() {
+    // AudioContext con latencia mínima
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint: 'interactive'
+    });
+
+    // Mic: desactivar todo procesamiento DSP del SO
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl:  false,
+      sampleRate:       this.ctx.sampleRate
+    }});
+
+    // Worklet desde blob (evita CORS — funciona en cualquier origen)
+    const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+    const url  = URL.createObjectURL(blob);
+    await this.ctx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+
+    // Nodos
+    const src  = this.ctx.createMediaStreamSource(stream);
+    this.node  = new AudioWorkletNode(this.ctx, 'looper', {
+      numberOfInputs:    1,
+      numberOfOutputs:   1,
+      outputChannelCount:[1]
+    });
+
+    // Auto-detección de RTL con API del navegador
+    const rtlSec = (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0);
+    this.detectedRTL = Math.round(rtlSec * 1000);
+    this.loopSR = this.ctx.sampleRate;
+    const rtlFrames = Math.round(rtlSec * this.ctx.sampleRate);
+    this.node.port.postMessage({ t: 'RTL', v: rtlFrames });
+
+    // Conexiones de audio
+    src.connect(this.node);
+    this.node.connect(this.ctx.destination);
+
+    // Grabación de sesión completa via MediaRecorder
+    const dest   = this.ctx.createMediaStreamDestination();
+    this.node.connect(dest);
+    const mime   = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                   ? 'audio/webm;codecs=opus' : 'audio/webm';
+    this.recorder = new MediaRecorder(dest.stream, { mimeType: mime });
+    this.sessionChunks = [];
+    this.recorder.ondataavailable = e => { if (e.data.size > 0) this.sessionChunks.push(e.data); };
+    this.recorder.onstop = () => {
+      this.sessionBlob = new Blob(this.sessionChunks, { type: 'audio/webm' });
+      this.onEvent?.({ t: 'session_ready' });
+    };
+    this.recorder.start(1000); // chunk cada segundo
+
+    // Mensajes del worklet
+    this.node.port.onmessage = e => this._onMsg(e.data);
+
+    return this.detectedRTL;
+  }
+
+  _onMsg(m) {
+    if (m.t === 'snap')    { this.onSnap?.(m); }
+    else if (m.t === 'base')  { this.loopLen = m.len; this.loopSR = m.sr; this.onEvent?.(m); }
+    else if (m.t === 'layer') { this.onEvent?.(m); }
+    else if (m.t === 'stopped' || m.t === 'cleared') {
+      if (m.t === 'stopped') this._stopRecorder();
+      this.onEvent?.(m);
+    }
+    else if (m.t === 'loop') {
+      const pcm = new Float32Array(m.data);
+      const wav = encodeWAV(pcm, m.sr);
+      download(new Blob([wav], { type: 'audio/wav' }), `loop_${Date.now()}.wav`);
+    }
+  }
+
+  _stopRecorder() {
+    if (this.recorder?.state === 'recording') this.recorder.stop();
+  }
+
+  recToggle()  { this.node?.port.postMessage({ t: 'REC' }); }
+  stop()       { this.node?.port.postMessage({ t: 'STOP' }); }
+  undo()       { this.node?.port.postMessage({ t: 'UNDO' }); }
+  clear()      { this.loopLen = 0; this.node?.port.postMessage({ t: 'CLEAR' }); }
+  mute(i)      { this.node?.port.postMessage({ t: 'MUTE', i }); }
+  exportLoop() { this.node?.port.postMessage({ t: 'EXPORT' }); }
+
+  setRTL(ms) {
+    const frames = Math.round(ms / 1000 * (this.ctx?.sampleRate ?? 48000));
+    this.node?.port.postMessage({ t: 'RTL', v: frames });
+  }
+
+  downloadSession() {
+    if (this.sessionBlob) {
+      download(this.sessionBlob, `loopera_session_${Date.now()}.webm`);
+    } else {
+      this._stopRecorder();
+      setStatus('Finalizando sesión…');
+    }
+  }
+}
+
+// ── 4. ESTADO GLOBAL ─────────────────────────────────────────────
+const engine = new LooperEngine();
+let snap = { s: 'IDLE', n: 0, p: 0, rms: 0, onset: false, muted: [], lrms: [] };
+let sessionReady = false;
+let loopReady    = false;
+let calibOpen    = false;
+let currentRTL   = 0;
+
+// ── 5. CANVAS ────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx2d  = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const s = wrap.offsetWidth * window.devicePixelRatio;
+  canvas.width  = s;
+  canvas.height = s;
+}
+window.addEventListener('resize', resizeCanvas);
+
+const STATE_COLOR = {
+  'IDLE':     '#4090E8',
+  'REC_BASE': '#E84040',
+  'PLAYING':  '#40E870',
+  'OVERDUB':  '#E84040'
+};
+const STATE_LABEL = {
+  'IDLE':     ['TAP', 'REC BASE'],
+  'REC_BASE': ['CERRAR', 'BASE'],
+  'PLAYING':  ['TAP', 'OVERDUB'],
+  'OVERDUB':  ['CERRAR', 'CAPA']
+};
+
+let onsetFlash = 0;
+let animPh = 0; // phase for idle animation
+
+function draw(ts) {
+  requestAnimationFrame(draw);
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R  = Math.min(W, H) * 0.44;
+  const dpr = window.devicePixelRatio || 1;
+
+  ctx2d.clearRect(0, 0, W, H);
+
+  const st    = snap.s || 'IDLE';
+  const color = STATE_COLOR[st] || '#4090E8';
+  const prog  = snap.p || 0;
+  const rms   = snap.rms || 0;
+
+  // ── Pista base (fondo del arco) ──────────────────
+  ctx2d.beginPath();
+  ctx2d.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx2d.strokeStyle = '#1A1A28';
+  ctx2d.lineWidth   = 10 * dpr;
+  ctx2d.stroke();
+
+  // ── Arco de progreso ─────────────────────────────
+  if (st !== 'IDLE' || prog > 0) {
+    const startA = -Math.PI / 2;
+    const endA   = startA + prog * Math.PI * 2;
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, R, startA, endA);
+    ctx2d.strokeStyle = color;
+    ctx2d.lineWidth   = 10 * dpr;
+    ctx2d.lineCap     = 'round';
+    ctx2d.stroke();
+
+    // Punto cabezal de playhead
+    if (prog > 0.02) {
+      const px = cx + R * Math.cos(endA);
+      const py = cy + R * Math.sin(endA);
+      ctx2d.beginPath();
+      ctx2d.arc(px, py, 6 * dpr, 0, Math.PI * 2);
+      ctx2d.fillStyle = color;
+      ctx2d.fill();
+    }
+  }
+
+  // ── Animación idle (arco girando) ────────────────
+  if (st === 'IDLE') {
+    animPh = (animPh + 0.008) % (Math.PI * 2);
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, R, animPh, animPh + 0.8);
+    ctx2d.strokeStyle = '#4090E820';
+    ctx2d.lineWidth   = 10 * dpr;
+    ctx2d.lineCap     = 'round';
+    ctx2d.stroke();
+  }
+
+  // ── VU glow (círculo central que respira con el audio) ──
+  const vu = Math.min(rms * 10, 1);
+  if (vu > 0.01) {
+    const gr = R * 0.65 * vu;
+    const grd = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, gr);
+    grd.addColorStop(0, color + '45');
+    grd.addColorStop(1, color + '00');
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, gr, 0, Math.PI * 2);
+    ctx2d.fillStyle = grd;
+    ctx2d.fill();
+  }
+
+  // ── Círculo interior ────────────────────────────
+  ctx2d.beginPath();
+  ctx2d.arc(cx, cy, R * 0.65, 0, Math.PI * 2);
+  ctx2d.fillStyle = '#0A0A0F';
+  ctx2d.fill();
+  ctx2d.strokeStyle = '#1A1A28';
+  ctx2d.lineWidth   = 1 * dpr;
+  ctx2d.stroke();
+
+  // ── Flash de onset ──────────────────────────────
+  if (snap.onset) onsetFlash = 8;
+  if (onsetFlash > 0) {
+    onsetFlash--;
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy, R + 8 * dpr, 0, Math.PI * 2);
+    ctx2d.strokeStyle = `#E8C040${Math.floor(onsetFlash * 28).toString(16).padStart(2,'0')}`;
+    ctx2d.lineWidth   = 4 * dpr;
+    ctx2d.stroke();
+  }
+
+  // ── Indicador de estado (punto de color) ────────
+  ctx2d.beginPath();
+  ctx2d.arc(cx, cy - R * 0.38, 5 * dpr, 0, Math.PI * 2);
+  ctx2d.fillStyle = color;
+  ctx2d.fill();
+  if (st === 'REC_BASE' || st === 'OVERDUB') {
+    // Pulso de grabación
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+    ctx2d.beginPath();
+    ctx2d.arc(cx, cy - R * 0.38, (5 + pulse * 6) * dpr, 0, Math.PI * 2);
+    ctx2d.strokeStyle = color + '60';
+    ctx2d.lineWidth = 2 * dpr;
+    ctx2d.stroke();
+  }
+
+  // ── Texto central ───────────────────────────────
+  ctx2d.textAlign    = 'center';
+  ctx2d.textBaseline = 'middle';
+  ctx2d.fillStyle    = color;
+  ctx2d.font         = `bold ${14 * dpr}px 'Courier New',monospace`;
+  const [line1, line2] = STATE_LABEL[st] || ['', ''];
+  ctx2d.fillText(line1, cx, cy - 10 * dpr);
+  ctx2d.font         = `bold ${16 * dpr}px 'Courier New',monospace`;
+  ctx2d.fillText(line2, cx, cy + 8 * dpr);
+
+  // ── Tiempo / capas ──────────────────────────────
+  if (engine.loopLen > 0) {
+    const totalSec = engine.loopLen / engine.loopSR;
+    const curSec   = prog * totalSec;
+    const fmt = s => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toFixed(1).padStart(4,'0')}`;
+    ctx2d.font      = `${9 * dpr}px 'Courier New',monospace`;
+    ctx2d.fillStyle = '#888899';
+    ctx2d.fillText(`${fmt(curSec)} / ${fmt(totalSec)}`, cx, cy + 28 * dpr);
+  }
+
+  if (snap.n > 0) {
+    ctx2d.font      = `bold ${9 * dpr}px 'Courier New',monospace`;
+    ctx2d.fillStyle = '#4090E8';
+    ctx2d.fillText(`${snap.n} CAPA${snap.n > 1 ? 'S' : ''}`, cx, cy + 42 * dpr);
+  }
+}
+requestAnimationFrame(draw);
+
+// ── 6. UI ────────────────────────────────────────────────────────
+function setStatus(msg, color) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.color = color || 'var(--mut)';
+}
+
+function updateBadge(state) {
+  const badge = document.getElementById('state-badge');
+  const labels = { IDLE:'IDLE', REC_BASE:'● REC BASE', PLAYING:'▶ PLAYING', OVERDUB:'● OVERDUB' };
+  const colors = { IDLE:'var(--mut)', REC_BASE:'var(--red)', PLAYING:'var(--grn)', OVERDUB:'var(--red)' };
+  badge.textContent = labels[state] || state;
+  badge.style.color  = colors[state] || 'var(--mut)';
+  badge.style.borderColor = colors[state] || 'var(--bdr)';
+}
+
+function updateLayerList() {
+  const el = document.getElementById('layers');
+  if (snap.n === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = '';
+  for (let i = 0; i < snap.n; i++) {
+    const muted = snap.muted[i] || false;
+    const lrms  = snap.lrms[i] || 0;
+    const barW  = Math.min(Math.round(lrms * 400), 100);
+    const color = i === 0 ? 'var(--grn)' : 'var(--blu)';
+    const label = i === 0 ? 'BASE' : `L ${i + 1}`;
+    const div   = document.createElement('div');
+    div.className = 'layer' + (muted ? ' muted' : '');
+    div.innerHTML = `
+      <div class="lname" style="color:${color}">${label}</div>
+      <div class="lbar"><div class="lbar-fill" style="width:${barW}%;background:${color}80"></div></div>
+      <button class="lmute" onclick="cmdMute(${i})">${muted ? 'MUTED' : 'MUTE'}</button>`;
+    el.appendChild(div);
+  }
+}
+
+engine.onSnap = (s) => {
+  snap = s;
+  updateBadge(s.s);
+  updateLayerList();
+};
+
+engine.onEvent = (e) => {
+  if (e.t === 'base')    { loopReady = true; setStatus(`Base fijada — ${(engine.loopLen/engine.loopSR).toFixed(2)}s`, 'var(--grn)'); }
+  if (e.t === 'layer')   { setStatus(`Capa ${e.n} fijada`, 'var(--blu)'); }
+  if (e.t === 'stopped') { sessionReady = true; document.getElementById('btn-session').classList.add('ready'); setStatus('Sesión lista para descargar', 'var(--grn)'); }
+  if (e.t === 'cleared') { loopReady = false; sessionReady = false; document.getElementById('btn-session').classList.remove('ready'); document.getElementById('btn-loop').classList.remove('loop-ready'); setStatus('Motor limpio', 'var(--mut)'); }
+  if (e.t === 'session_ready') { document.getElementById('btn-session').classList.add('ready'); }
+};
+
+// ── 7. COMANDOS ──────────────────────────────────────────────────
+async function startEngine() {
+  try {
+    setStatus('Abriendo micrófono…');
+    const rtl = await engine.init();
+    // Aplicar RTL auto-detectado al slider
+    currentRTL = rtl;
+    const slider = document.getElementById('rtl-slider');
+    slider.value = Math.min(rtl, 200);
+    document.getElementById('rtl-val').textContent = Math.round(rtl) + ' ms';
+    slider.style.setProperty('--pct', Math.min(rtl / 200 * 100, 100) + '%');
+    setStatus(`Motor listo · RTL detectado: ~${rtl} ms`, 'var(--grn)');
+    updateBadge('IDLE');
+  } catch (err) {
+    setStatus('Error: ' + err.message, 'var(--red)');
+    console.error(err);
+  }
+}
+
+function cmdREC()          { engine.recToggle(); }
+function cmdStop()         { engine.stop(); }
+function cmdUndo()         { engine.undo(); setStatus('Undo última capa', 'var(--blu)'); }
+function cmdClear()        { engine.clear(); snap = { s:'IDLE', n:0, p:0, rms:0, onset:false, muted:[], lrms:[] }; updateLayerList(); updateBadge('IDLE'); }
+function cmdMute(i)        { engine.mute(i); }
+function cmdExportSession(){ engine.downloadSession(); setStatus('Descargando sesión WebM…', 'var(--yel)'); }
+function cmdExportLoop()   {
+  if (!loopReady) { setStatus('Graba un loop primero', 'var(--mut)'); return; }
+  engine.exportLoop();
+  document.getElementById('btn-loop').classList.add('loop-ready');
+  setStatus('Exportando loop WAV…', 'var(--yel)');
+}
+function toggleCalib() {
+  calibOpen = !calibOpen;
+  document.getElementById('calib').classList.toggle('open', calibOpen);
+  document.getElementById('btn-calib').classList.toggle('en', true);
+}
+function onRTL(val) {
+  currentRTL = parseFloat(val);
+  document.getElementById('rtl-val').textContent = Math.round(currentRTL) + ' ms';
+  const pct = (currentRTL / 200) * 100;
+  document.getElementById('rtl-slider').style.setProperty('--pct', pct + '%');
+  engine.setRTL(currentRTL);
+}
+
+// ── 8. CANVAS TAP ────────────────────────────────────────────────
+let engineStarted = false;
+
+canvas.addEventListener('touchstart', async (e) => {
+  e.preventDefault();
+  if (!engineStarted) {
+    engineStarted = true;
+    await startEngine();
+  }
+  cmdREC();
+}, { passive: false });
+
+canvas.addEventListener('click', async () => {
+  if (!engineStarted) {
+    engineStarted = true;
+    await startEngine();
+  }
+  cmdREC();
+});
+
+// ── 9. SPLASH ────────────────────────────────────────────────────
+document.getElementById('splash').addEventListener('click', () => {
+  document.getElementById('splash').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  resizeCanvas();
+  setStatus('Toca el círculo para comenzar a grabar');
+});
+
+document.getElementById('splash').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  document.getElementById('splash').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  resizeCanvas();
+  setStatus('Toca el círculo para comenzar a grabar');
+}, { passive: false });
+</script>
+</body>
+</html>
